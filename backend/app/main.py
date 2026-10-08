@@ -9,6 +9,7 @@ from app.api.auth_routes import router as auth_router
 from app.api.campagnes_routes import router as campagnes_router
 from app.api.conges_routes import router as conges_router
 from app.api.declarations_routes import router as declarations_router
+from app.api.notifications_routes import router as notifications_router
 from app.api.virements_routes import router as virements_router
 from app.api.parametres_routes import router as parametres_router
 from app.api.pointages_routes import router as pointages_router
@@ -65,3 +66,4 @@ app.include_router(campagnes_router)
 app.include_router(conges_router)
 app.include_router(declarations_router)
 app.include_router(virements_router)
+app.include_router(notifications_router)

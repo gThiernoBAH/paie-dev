@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # Longueur minimale d'un mot de passe.
     PASSWORD_MIN_LENGTH: int = 10
 
+    # Mot de passe du compte SMTP d'envoi des e-mails (jamais en base ; les autres réglages sont dans Paramétrage → E-mail).
+    SMTP_PASSWORD: str = ""
+
     # --- CORS : origines autorisées à appeler l'API depuis un navigateur, séparées par des virgules.
     # Vide = aucune origine externe (cas normal en production : nginx sert le front et relaie /api).
     CORS_ORIGINS: str = "http://localhost:5178"

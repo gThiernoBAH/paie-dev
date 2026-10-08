@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..core import models
 from ..core.database import get_db
-from ..services import audit, fichiers
+from ..services import audit, fichiers, messagerie
 from ..services import virements as svc
 from ..services.bulletins import ErreurPaie
 from .auth_routes import require_permission
@@ -89,6 +89,10 @@ def lancer(lot_id: int, request: Request, db: Session = Depends(get_db), acteur:
     audit.enregistrer(db, "virement_lance", acteur=acteur, cible_type="lot_virement", cible_id=lot.id,
                       detail={"ordres": lot.nombre_ordres, "total": str(lot.total)}, request=request)
     db.commit()
+    try:                                  # l'alerte ne doit jamais empêcher ni défaire le virement
+        messagerie.alerter_virement(db, lot, acteur)
+    except Exception:
+        db.rollback()
     return _sortie(lot)
 
 

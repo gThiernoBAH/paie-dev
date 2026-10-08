@@ -11,7 +11,7 @@ const peutModifier = aLaPermission(utilisateur, 'gerer_parametres')
 const CATEGORIES = {
   entreprise: 'Entreprise', general: 'Général', cnps: 'CNPS', fdfp: 'FDFP', its: 'ITS', cmu: 'CMU',
   heures_sup: 'Heures supplémentaires', anciennete: 'Ancienneté', indemnites: 'Indemnités', conges: 'Congés',
-  journaliers: 'Journaliers', licenciement: 'Licenciement',
+  journaliers: 'Journaliers', licenciement: 'Licenciement', pointages: 'Pointages', comptabilite: 'Comptabilité', email: 'E-mail',
 }
 const parametres = ref([])
 const etat = ref(null)
@@ -99,6 +99,15 @@ async function confirmerActuelle() {
     await charger()
   } catch (e) { erreurPanneau.value = messageErreur(e) } finally { enCours.value = false }
 }
+const destTest = ref('')
+async function testerEmail() {
+  erreur.value = ''; message.value = ''
+  try {
+    const { data } = await apiClient.post('/email/test', { destinataire: destTest.value })
+    if (data.statut === 'envoye') message.value = `Message de test envoyé à ${destTest.value}.`
+    else erreur.value = data.erreur || 'Le message de test n\'est pas parti.'
+  } catch (e) { erreur.value = messageErreur(e) }
+}
 onMounted(charger)
 </script>
 
@@ -129,6 +138,13 @@ onMounted(charger)
         <label class="case"><input v-model="seulementAConfirmer" type="checkbox" /> À confirmer seulement</label>
       </div>
     </div>
+
+    <form v-if="categorie === 'email'" class="card test-email" @submit.prevent="testerEmail">
+      <strong>Tester l'envoi</strong>
+      <input v-model="destTest" type="email" class="input" placeholder="votre.adresse@exemple.ci" required aria-label="Adresse de test" />
+      <button class="vbtn vbtn-secondary" type="submit">Envoyer un message de test</button>
+      <span class="aide-mini">Le mot de passe du compte d'envoi se règle dans le fichier de configuration du serveur (SMTP_PASSWORD).</span>
+    </form>
 
     <div class="card tableau-cadre">
       <table>
@@ -276,4 +292,7 @@ h3 { margin: 0; font-size: var(--font-size-base); }
 .histo { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
 .histo li { border-left: 3px solid var(--color-border); padding-left: var(--space-3); font-size: var(--font-size-sm); }
 @media (max-width: 760px) { .page { padding: var(--space-4); } }
+.test-email { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; padding: var(--space-3) var(--space-4); }
+.test-email .input { width: auto; min-width: 260px; }
+.aide-mini { font-size: var(--font-size-xs); color: var(--color-text-muted); }
 </style>

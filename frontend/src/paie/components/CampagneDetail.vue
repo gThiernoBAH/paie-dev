@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import apiClient, { messageErreur } from '@/api/client'
 import { aLaPermission, lireUtilisateur } from '@/api/session'
 import { telecharger } from '@/api/telechargement'
-import { Calculator, CheckCircle2, Download, Printer, Unlock, Users, Clock, Trash2, Plus, Lock, Landmark, FileSpreadsheet } from 'lucide-vue-next'
+import { Calculator, CheckCircle2, Download, Printer, Unlock, Users, Clock, Trash2, Plus, Lock, Landmark, FileSpreadsheet, Mail } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,6 +13,7 @@ const u = lireUtilisateur()
 const peutPreparer = aLaPermission(u, 'lancer_paie')
 const peutValider = aLaPermission(u, 'valider_bulletins')
 const estAdmin = u?.role === 'admin'
+const envois = ref(null)
 const peutVirer = aLaPermission(u, 'gerer_virements')
 const peutDeclarer = aLaPermission(u, 'voir_declarations')
 
@@ -65,6 +66,21 @@ async function preparerVirements() {
     const { data } = await apiClient.post(`/campagnes/${id}/virements`, {})
     router.push('/virements?lot=' + data.id)
   } catch (e) { erreur.value = messageErreur(e) }
+}
+async function chargerEnvois() {
+  try { envois.value = (await apiClient.get(`/campagnes/${id}/envois`)).data } catch { envois.value = null }
+}
+async function envoyerBulletins() {
+  if (!window.confirm('Envoyer les bulletins par e-mail aux salariés concernés ?')) return
+  erreur.value = ''; message.value = ''
+  try {
+    const { data } = await apiClient.post(`/campagnes/${id}/envoyer-bulletins`, {})
+    message.value = `${data.en_attente} envoi(s) lancé(s), ${data.ignores} ignoré(s) (e-mail ou date de naissance manquant), ${data.deja_envoyes} déjà envoyé(s).`
+    setTimeout(chargerEnvois, 2500)
+  } catch (e) { erreur.value = messageErreur(e) }
+}
+async function relancerEnvois() {
+  try { await apiClient.post(`/campagnes/${id}/relancer-envois`); setTimeout(chargerEnvois, 2500) } catch (e) { erreur.value = messageErreur(e) }
 }
 async function journal(format) {
   try { await telecharger(`/campagnes/${id}/journal-comptable`, { format }, `journal.${format}`) } catch (e) { erreur.value = 'Journal indisponible.' }
@@ -124,6 +140,7 @@ async function ouvrirPdf(chemin) {
 }
 onMounted(async () => {
   await recharger()
+  if (campagne.value && ['validee', 'cloturee'].includes(campagne.value.statut)) chargerEnvois()
   try { rubriques.value = (await apiClient.get('/rubriques')).data.filter((r) => r.est_actif) } catch { /* facultatif */ }
 })
 </script>
@@ -146,6 +163,7 @@ onMounted(async () => {
         <button v-if="peutValider && campagne.statut === 'validee'" class="vbtn vbtn-secondary" @click="cloturer"><Lock :size="16" />Clôturer</button>
         <button v-if="estAdmin && campagne.statut === 'validee'" class="vbtn vbtn-secondary" @click="rouvrir"><Unlock :size="16" />Rouvrir</button>
         <button v-if="peutVirer && campagne.statut === 'validee'" class="vbtn vbtn-primary" @click="preparerVirements"><Landmark :size="16" />Préparer les virements</button>
+        <button v-if="peutValider && figee" class="vbtn vbtn-secondary" @click="envoyerBulletins"><Mail :size="16" />Envoyer par e-mail</button>
         <button v-if="peutDeclarer && figee" class="vbtn vbtn-secondary" @click="journal('xlsx')"><FileSpreadsheet :size="16" />Journal comptable</button>
         <button v-if="bulletins.length" class="vbtn vbtn-secondary" @click="ouvrirPdf(`/campagnes/${id}/bulletins.pdf`)"><Printer :size="16" />Tous les bulletins (PDF)</button>
       </div>
@@ -160,6 +178,11 @@ onMounted(async () => {
 
     <p v-if="message" class="bandeau ok" role="status">{{ message }}</p>
     <p v-if="erreur" class="message-erreur" role="alert">{{ erreur }}</p>
+    <p v-if="envois && Object.keys(envois).length" class="bandeau ok" role="status">
+      Envois par e-mail :
+      <span v-for="(n, s) in envois" :key="s" class="envoi">{{ n }} {{ { envoye: 'envoyé(s)', echec: 'en échec', ignore: 'ignoré(s)', desactive: 'non partis (e-mail désactivé)', en_attente: 'en cours' }[s] || s }}</span>
+      <button v-if="envois.echec || envois.desactive" class="lien" @click="relancerEnvois">Relancer</button>
+    </p>
     <div v-if="campagne.validation?.raisons?.length" class="bandeau avert" role="alert">
       <strong>Validation impossible pour l'instant :</strong>
       <ul><li v-for="(r, i) in campagne.validation.raisons" :key="i">{{ r }}</li></ul>
@@ -301,6 +324,7 @@ td { padding: 6px 12px; border-bottom: 1px solid var(--color-border); }
 .icone-neutre { border: none; background: none; cursor: pointer; color: var(--color-text-muted); width: 36px; height: 36px; }
 .petit { padding: 4px 10px; min-height: 32px; }
 .aide { font-size: var(--font-size-xs); color: var(--color-text-muted); margin: 0; } .pad { padding: var(--space-3) var(--space-4); }
+.envoi { margin-right: 12px; font-weight: 600; }
 .rouge { color: var(--color-rouge); }
 .st-validee, .st-cloturee { background: var(--color-vert-bg); color: var(--color-vert); }
 .bandeau { padding: 10px 14px; border-radius: var(--radius-md); font-size: var(--font-size-sm); margin: 0; }

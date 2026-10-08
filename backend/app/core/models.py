@@ -392,3 +392,20 @@ class OrdreVirement(Base):
     rib_chiffre = Column(Text, nullable=False)
 
     salarie = relationship("Salarie", lazy="joined")
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True)
+    type_notif = Column(String(20), nullable=False)
+    destinataire = Column(String(200))
+    objet = Column(String(200), nullable=False)
+    statut = Column(String(12), nullable=False, default="en_attente")
+    erreur = Column(String(300))
+    tentatives = Column(Integer, nullable=False, default=0)
+    campagne_id = Column(Integer, ForeignKey("campagnes.id", ondelete="SET NULL"))
+    bulletin_id = Column(Integer, ForeignKey("bulletins.id", ondelete="SET NULL"))
+    cree_par = Column(String(20))
+    cree_le = Column(DateTime(timezone=True), server_default=func.now())
+    envoye_le = Column(DateTime(timezone=True))

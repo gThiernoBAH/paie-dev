@@ -459,4 +459,24 @@ CREATE TABLE IF NOT EXISTS ordres_virement (
     UNIQUE (lot_id, salarie_id)
 );
 
+-- =============================================================
+-- 9. Notifications (e-mails)
+-- =============================================================
+CREATE TABLE IF NOT EXISTS notifications (
+    id SERIAL PRIMARY KEY,
+    type_notif VARCHAR(20) NOT NULL CHECK (type_notif IN ('bulletin', 'alerte_virement', 'test')),
+    destinataire VARCHAR(200),
+    objet VARCHAR(200) NOT NULL,
+    statut VARCHAR(12) NOT NULL DEFAULT 'en_attente'
+        CHECK (statut IN ('en_attente', 'envoye', 'echec', 'ignore', 'desactive')),
+    erreur VARCHAR(300),
+    tentatives INTEGER NOT NULL DEFAULT 0,
+    campagne_id INTEGER REFERENCES campagnes(id) ON DELETE SET NULL,
+    bulletin_id INTEGER REFERENCES bulletins(id) ON DELETE SET NULL,
+    cree_par VARCHAR(20),
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    envoye_le TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS ix_notifications_campagne ON notifications (campagne_id, statut);
+
 DO $$ BEGIN RAISE NOTICE 'Schéma SIVOP Paie à jour'; END; $$;

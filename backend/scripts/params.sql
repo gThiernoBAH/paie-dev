@@ -486,3 +486,77 @@ INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite
 INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
   VALUES ('compta_compte_arrondis', '658000', DATE '2000-01-01', 'a_confirmer', 'Plan SYSCOHADA usuel – à valider par le comptable', 'système')
   ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+
+-- LOT 8 : e-mail
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('email_actif', 'email', 'Envoi d''e-mails activé', 'Tant que c''est désactivé, aucun e-mail ne part ; les envois sont simplement enregistrés comme « désactivés ».', 'booleen', NULL, NULL, NULL, NULL, FALSE, 690)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('email_actif', 'false', DATE '2000-01-01', 'confirme', 'Valeur initiale', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('email_smtp_hote', 'email', 'Serveur SMTP – hôte', 'Adresse du serveur d''envoi (ex. smtp.office365.com). Le mot de passe se règle dans le fichier .env (SMTP_PASSWORD).', 'texte', NULL, NULL, NULL, NULL, FALSE, 700)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('email_smtp_hote', 'smtp.exemple.ci', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale – à renseigner', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('email_smtp_port', 'email', 'Serveur SMTP – port', '587 (STARTTLS), 465 (SSL) ou 25.', 'entier', NULL, 1, 65535, NULL, FALSE, 710)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('email_smtp_port', '587', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale – à renseigner', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('email_smtp_securite', 'email', 'Serveur SMTP – sécurité', 'starttls, ssl ou aucune.', 'texte', NULL, NULL, NULL, 'starttls,ssl,aucune', FALSE, 720)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('email_smtp_securite', 'starttls', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale – à renseigner', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('email_smtp_utilisateur', 'email', 'Serveur SMTP – identifiant', 'Laisser « - » si le serveur n''exige pas d''authentification.', 'texte', NULL, NULL, NULL, NULL, FALSE, 730)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('email_smtp_utilisateur', '-', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale – à renseigner', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('email_expediteur_adresse', 'email', 'Adresse d''expédition', 'Adresse qui apparaît comme expéditeur.', 'texte', NULL, NULL, NULL, NULL, FALSE, 740)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('email_expediteur_adresse', 'paie@sivop.ci', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale – à renseigner', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('email_expediteur_nom', 'email', 'Nom d''expéditeur', NULL, 'texte', NULL, NULL, NULL, NULL, FALSE, 750)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('email_expediteur_nom', 'SIVOP – Service Paie', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale – à renseigner', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('email_objet_bulletin', 'email', 'Objet du message de bulletin', 'Variables : {periode}, {prenom}, {nom}, {matricule}.', 'texte', NULL, NULL, NULL, NULL, FALSE, 760)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('email_objet_bulletin', 'Votre bulletin de paie – {periode}', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale – à renseigner', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('email_corps_bulletin', 'email', 'Texte du message de bulletin', 'Variables : {periode}, {prenom}, {nom}, {matricule}.', 'texte', NULL, NULL, NULL, NULL, FALSE, 770)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('email_corps_bulletin', 'Bonjour {prenom},\n\nVeuillez trouver ci-joint votre bulletin de paie de {periode}.\nLe document est protégé : son mot de passe est votre date de naissance au format JJMMAAAA.\n\nCordialement,\nLe service Paie', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale – à renseigner', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('email_pdf_protege', 'email', 'Bulletin PDF protégé par mot de passe', 'Mot de passe = date de naissance du salarié (JJMMAAAA). Recommandé : le bulletin contient des données personnelles.', 'booleen', NULL, NULL, NULL, NULL, FALSE, 780)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('email_pdf_protege', 'true', DATE '2000-01-01', 'confirme', 'Valeur initiale', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('email_alerte_virement_actif', 'email', 'Alerte au lancement d''un virement', 'Envoie un e-mail aux destinataires ci-dessous quand un lot de virement est lancé.', 'booleen', NULL, NULL, NULL, NULL, FALSE, 790)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('email_alerte_virement_actif', 'true', DATE '2000-01-01', 'confirme', 'Valeur initiale', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('email_alerte_virement_destinataires', 'email', 'Destinataires de l''alerte virement', 'Adresses séparées par des virgules (ex. direction, DAF).', 'texte', NULL, NULL, NULL, NULL, FALSE, 800)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('email_alerte_virement_destinataires', '-', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale – à renseigner', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
