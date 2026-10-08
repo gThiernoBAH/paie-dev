@@ -7,6 +7,8 @@ from sqlalchemy import text
 from app.api.admin_routes import router as admin_router
 from app.api.auth_routes import router as auth_router
 from app.api.parametres_routes import router as parametres_router
+from app.api.referentiels_routes import router as referentiels_router
+from app.api.salaries_routes import router as salaries_router
 from app.core.database import engine
 from app.core.settings import settings
 
@@ -51,3 +53,5 @@ def health():
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(parametres_router)
+app.include_router(referentiels_router)
+app.include_router(salaries_router)

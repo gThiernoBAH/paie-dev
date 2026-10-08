@@ -4,6 +4,9 @@ import Login from '../components/Login.vue'
 import ChangerMotDePasse from '../components/ChangerMotDePasse.vue'
 import PaieView from '../paie/PaieView.vue'
 import TableauDeBordView from '../paie/components/TableauDeBordView.vue'
+import SalariesView from '../paie/components/SalariesView.vue'
+import SalarieFiche from '../paie/components/SalarieFiche.vue'
+import ReferentielsView from '../direction/components/ReferentielsView.vue'
 import ParametrageView from '../direction/components/ParametrageView.vue'
 import AdminView from '../direction/components/AdminView.vue'
 import { lireUtilisateur, aLaPermission } from '../api/session'
@@ -18,6 +21,9 @@ const routes = [
     children: [
       { path: '', redirect: '/tableau-de-bord' },
       { path: 'tableau-de-bord', name: 'tableau-de-bord', component: TableauDeBordView },
+      { path: 'salaries', name: 'salaries', component: SalariesView, meta: { requiresAnyPermission: ['voir_salaries'] } },
+      { path: 'salaries/:id', name: 'salarie', component: SalarieFiche, meta: { requiresAnyPermission: ['voir_salaries'] } },
+      { path: 'referentiels', name: 'referentiels', component: ReferentielsView, meta: { requiresAnyPermission: ['voir_salaries'] } },
       { path: 'parametrage', name: 'parametrage', component: ParametrageView, meta: { requiresAnyPermission: ['voir_parametres', 'gerer_parametres'] } },
       // Administration : comptes, droits, journal d'audit (au moins l'une des deux permissions).
       { path: 'administration', name: 'administration', component: AdminView, meta: { requiresAnyPermission: ['gerer_utilisateurs', 'voir_audit'] } },

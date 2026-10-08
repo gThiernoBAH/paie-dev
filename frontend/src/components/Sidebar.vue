@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Banknote, LayoutDashboard, Users, Clock, CalendarRange, FileText, Palmtree, Landmark,
-  FileBadge, BarChart3, SlidersHorizontal, ShieldCheck, LogOut, KeyRound,
+  FileBadge, BarChart3, ListChecks, SlidersHorizontal, ShieldCheck, LogOut, KeyRound,
 } from 'lucide-vue-next'
 import { lireUtilisateur, fermerSession, aLaPermission } from '@/api/session'
 
@@ -16,7 +16,8 @@ const entrees = computed(() => {
   const u = utilisateur
   return [
     { cle: 'tableau', libelle: 'Tableau de bord', icone: LayoutDashboard, vers: '/tableau-de-bord' },
-    { cle: 'salaries', libelle: 'Salariés', icone: Users, lot: 2 },
+    { cle: 'salaries', libelle: 'Salariés', icone: Users, vers: '/salaries', masque: !aLaPermission(u, 'voir_salaries') },
+    { cle: 'referentiels', libelle: 'Référentiels', icone: ListChecks, vers: '/referentiels', masque: !aLaPermission(u, 'voir_salaries') },
     { cle: 'pointages', libelle: 'Pointages', icone: Clock, lot: 4 },
     { cle: 'campagnes', libelle: 'Campagnes de paie', icone: CalendarRange, lot: 5 },
     { cle: 'bulletins', libelle: 'Bulletins', icone: FileText, lot: 5 },

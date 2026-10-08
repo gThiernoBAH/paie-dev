@@ -141,3 +141,119 @@ class EtatParametresOut(BaseModel):
 
 class ConfirmationIn(BaseModel):
     source: str = Field(min_length=3, max_length=200)
+
+
+# --- Référentiels et salariés (lot 2) ---
+TYPES_REFERENTIEL = ("service", "section", "emploi", "categorie", "site", "banque", "type_contrat")
+
+
+class ReferentielOut(BaseModel):
+    id: int
+    type_ref: str
+    code: str
+    libelle: str
+    extra: Optional[dict] = None
+    est_actif: bool
+    ordre: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ReferentielIn(BaseModel):
+    type_ref: str
+    code: str = Field(min_length=1, max_length=20, pattern=r"^[A-Za-z0-9_.\-]+$")
+    libelle: str = Field(min_length=1, max_length=150)
+    extra: Optional[dict] = None
+    ordre: int = Field(default=0, ge=0, le=100000)
+
+
+class ReferentielModifIn(BaseModel):
+    libelle: Optional[str] = Field(default=None, min_length=1, max_length=150)
+    extra: Optional[dict] = None
+    est_actif: Optional[bool] = None
+    ordre: Optional[int] = Field(default=None, ge=0, le=100000)
+
+
+class RefCourtOut(BaseModel):
+    id: int
+    code: str
+    libelle: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SalarieChampsIn(BaseModel):
+    """Champs modifiables d'une fiche (tous facultatifs en modification)."""
+    nom: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    prenoms: Optional[str] = Field(default=None, max_length=150)
+    sexe: Optional[str] = Field(default=None, pattern=r"^[MF]$")
+    date_naissance: Optional[date] = None
+    lieu_naissance: Optional[str] = Field(default=None, max_length=100)
+    nationalite: Optional[str] = Field(default=None, max_length=60)
+    situation_matrimoniale: Optional[str] = Field(default=None, pattern=r"^(celibataire|marie|divorce|veuf)$")
+    nombre_enfants: Optional[int] = Field(default=None, ge=0, le=30)
+    nombre_parts: Optional[float] = Field(default=None, ge=1, le=5)
+    nombre_personnes_cmu: Optional[int] = Field(default=None, ge=0, le=30)
+    telephone: Optional[str] = Field(default=None, max_length=30)
+    email: Optional[str] = Field(default=None, max_length=150)
+    adresse: Optional[str] = Field(default=None, max_length=200)
+    ville: Optional[str] = Field(default=None, max_length=80)
+    date_embauche: Optional[date] = None
+    type_contrat_id: Optional[int] = None
+    service_id: Optional[int] = None
+    section_id: Optional[int] = None
+    emploi_id: Optional[int] = None
+    categorie_id: Optional[int] = None
+    site_id: Optional[int] = None
+    type_remuneration: Optional[str] = Field(default=None, pattern=r"^(mensuel|journalier)$")
+    eligible_heures_sup: Optional[bool] = None
+    mode_paiement: Optional[str] = Field(default=None, pattern=r"^(virement|especes|cheque)$")
+    banque_id: Optional[int] = None
+    # Données sensibles : exigent le droit « voir_donnees_sensibles ».
+    rib: Optional[str] = Field(default=None, max_length=40)
+    numero_cnps: Optional[str] = Field(default=None, max_length=30)
+
+
+class SalarieCreationIn(SalarieChampsIn):
+    matricule: Optional[str] = Field(default=None, max_length=6)  # vide = prochain matricule libre
+    nom: str = Field(min_length=1, max_length=100)
+    salaire_base: Optional[float] = Field(default=None, ge=0)     # exige « voir_donnees_sensibles »
+
+
+class SalarieListeOut(BaseModel):
+    id: int
+    matricule: str
+    nom: str
+    prenoms: Optional[str] = None
+    service: Optional[RefCourtOut] = None
+    emploi: Optional[RefCourtOut] = None
+    type_remuneration: str
+    date_embauche: Optional[date] = None
+    date_sortie: Optional[date] = None
+    est_actif: bool
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SalariePageOut(BaseModel):
+    total: int
+    page: int
+    taille: int
+    elements: list[SalarieListeOut]
+
+
+class EvolutionSalaireOut(BaseModel):
+    id: int
+    date_effet: date
+    montant: float
+    motif: Optional[str] = None
+    cree_par: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EvolutionSalaireIn(BaseModel):
+    date_effet: date
+    montant: float = Field(ge=0, le=1_000_000_000)
+    motif: Optional[str] = Field(default=None, max_length=200)
+
+
+class SortieIn(BaseModel):
+    date_sortie: date
+    motif_sortie: str = Field(min_length=2, max_length=40)

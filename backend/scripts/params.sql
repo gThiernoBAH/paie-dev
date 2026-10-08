@@ -286,3 +286,22 @@ INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite
 INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
   VALUES ('licenciement_plafond', '50000', DATE '2000-01-01', 'a_confirmer', 'Legacy Delphi (table FIPARA)', 'système')
   ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+
+-- LOT 2 : référentiels initiaux (modifiables dans l'application ; jamais écrasés)
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('type_contrat', 'CDI', 'Contrat à durée indéterminée', 10) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('type_contrat', 'CDD', 'Contrat à durée déterminée', 20) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('type_contrat', 'JOUR', 'Journalier', 30) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('type_contrat', 'STAGE', 'Stagiaire', 40) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('type_contrat', 'CONS', 'Consultant', 50) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'SGBCI', 'Société Générale Côte d''Ivoire', 10) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'SIB', 'Société Ivoirienne de Banque', 20) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'BICICI', 'BICICI', 30) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'ECOBANK', 'Ecobank Côte d''Ivoire', 40) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'NSIA', 'NSIA Banque', 50) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'BOA', 'Bank of Africa CI', 60) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'ORABANK', 'Orabank', 70) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'BACI', 'Banque Atlantique CI', 80) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'CORIS', 'Coris Bank International', 90) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'UBA', 'United Bank for Africa CI', 100) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'BNI', 'Banque Nationale d''Investissement', 110) ON CONFLICT (type_ref, code) DO NOTHING;
+INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'AUTRE', 'Autre banque', 120) ON CONFLICT (type_ref, code) DO NOTHING;

@@ -126,4 +126,80 @@ CREATE TABLE IF NOT EXISTS valeurs_parametres (
 );
 CREATE INDEX IF NOT EXISTS ix_valeurs_parametres_cle ON valeurs_parametres (parametre_cle, date_effet DESC);
 
+-- =============================================================
+-- 4. RÉFÉRENTIELS ET SALARIÉS (lot 2)
+-- =============================================================
+-- Listes paramétrables par l'administrateur (services, sections, emplois, catégories, sites, banques,
+-- types de contrat). Une seule table : ajouter un type de liste ne demande aucune migration.
+-- `extra` porte les informations propres à un type (ex. code banque, ou salaire de référence d'une catégorie).
+-- On ne supprime pas une ligne utilisée : on la désactive (est_actif = FALSE).
+CREATE TABLE IF NOT EXISTS referentiels (
+    id SERIAL PRIMARY KEY,
+    type_ref VARCHAR(30) NOT NULL
+        CHECK (type_ref IN ('service', 'section', 'emploi', 'categorie', 'site', 'banque', 'type_contrat')),
+    code VARCHAR(20) NOT NULL,
+    libelle VARCHAR(150) NOT NULL,
+    extra JSONB,
+    est_actif BOOLEAN NOT NULL DEFAULT TRUE,
+    ordre INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (type_ref, code)
+);
+
+-- Un salarié. `matricule` = identifiant de connexion de l'espace salarié (6 chiffres, zéros initiaux conservés).
+-- RIB et n° CNPS sont CHIFFRÉS (préfixe enc1:, cf. core/crypto.py) : jamais en clair en base.
+-- Le salaire n'est pas ici : il vit dans evolutions_salaire (historique daté).
+CREATE TABLE IF NOT EXISTS salaries (
+    id SERIAL PRIMARY KEY,
+    matricule CHAR(6) NOT NULL UNIQUE CHECK (matricule ~ '^[0-9]{6}$'),
+    nom VARCHAR(100) NOT NULL,
+    prenoms VARCHAR(150),
+    sexe CHAR(1) CHECK (sexe IN ('M', 'F')),
+    date_naissance DATE,
+    lieu_naissance VARCHAR(100),
+    nationalite VARCHAR(60) DEFAULT 'Ivoirienne',
+    situation_matrimoniale VARCHAR(15) NOT NULL DEFAULT 'celibataire'
+        CHECK (situation_matrimoniale IN ('celibataire', 'marie', 'divorce', 'veuf')),
+    nombre_enfants INTEGER NOT NULL DEFAULT 0 CHECK (nombre_enfants BETWEEN 0 AND 30),
+    nombre_parts NUMERIC(3,1) NOT NULL DEFAULT 1 CHECK (nombre_parts BETWEEN 1 AND 5),
+    nombre_personnes_cmu INTEGER NOT NULL DEFAULT 1 CHECK (nombre_personnes_cmu BETWEEN 0 AND 30),
+    telephone VARCHAR(30),
+    email VARCHAR(150),
+    adresse VARCHAR(200),
+    ville VARCHAR(80),
+    date_embauche DATE,
+    date_sortie DATE,
+    motif_sortie VARCHAR(40),
+    type_contrat_id INTEGER REFERENCES referentiels(id),
+    service_id INTEGER REFERENCES referentiels(id),
+    section_id INTEGER REFERENCES referentiels(id),
+    emploi_id INTEGER REFERENCES referentiels(id),
+    categorie_id INTEGER REFERENCES referentiels(id),
+    site_id INTEGER REFERENCES referentiels(id),
+    type_remuneration VARCHAR(10) NOT NULL DEFAULT 'mensuel' CHECK (type_remuneration IN ('mensuel', 'journalier')),
+    eligible_heures_sup BOOLEAN NOT NULL DEFAULT TRUE,
+    mode_paiement VARCHAR(10) NOT NULL DEFAULT 'virement' CHECK (mode_paiement IN ('virement', 'especes', 'cheque')),
+    banque_id INTEGER REFERENCES referentiels(id),
+    rib_chiffre TEXT,
+    numero_cnps_chiffre TEXT,
+    est_actif BOOLEAN NOT NULL DEFAULT TRUE,
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modifie_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (date_sortie IS NULL OR date_embauche IS NULL OR date_sortie >= date_embauche)
+);
+CREATE INDEX IF NOT EXISTS ix_salaries_nom ON salaries (LOWER(nom));
+CREATE INDEX IF NOT EXISTS ix_salaries_service ON salaries (service_id);
+CREATE INDEX IF NOT EXISTS ix_salaries_actif ON salaries (est_actif);
+
+-- Historique daté du salaire de base (mensuel, ou taux journalier pour un journalier).
+CREATE TABLE IF NOT EXISTS evolutions_salaire (
+    id SERIAL PRIMARY KEY,
+    salarie_id INTEGER NOT NULL REFERENCES salaries(id) ON DELETE CASCADE,
+    date_effet DATE NOT NULL,
+    montant NUMERIC(14,2) NOT NULL CHECK (montant >= 0),
+    motif VARCHAR(200),
+    cree_par VARCHAR(20),
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (salarie_id, date_effet)
+);
+
 DO $$ BEGIN RAISE NOTICE 'Schéma SIVOP Paie à jour'; END; $$;
