@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -88,3 +88,56 @@ class AuditPageOut(BaseModel):
 
 def role_valide(role: str) -> bool:
     return role in ROLES
+
+
+# --- Paramétrage (lot 1) ---
+class ValeurParametreOut(BaseModel):
+    id: int
+    valeur: str
+    date_effet: date
+    statut: str
+    source: Optional[str] = None
+    commentaire: Optional[str] = None
+    cree_par: Optional[str] = None
+    cree_le: Optional[datetime] = None
+    confirme_par: Optional[str] = None
+    confirme_le: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ParametreOut(BaseModel):
+    cle: str
+    categorie: str
+    libelle: str
+    description: Optional[str] = None
+    type_valeur: str
+    unite: Optional[str] = None
+    valeur_min: Optional[float] = None
+    valeur_max: Optional[float] = None
+    choix: Optional[list[str]] = None
+    critique: bool
+    valeur_courante: Optional[ValeurParametreOut] = None
+    nb_valeurs: int
+
+
+class ParametreDetailOut(ParametreOut):
+    historique: list[ValeurParametreOut]
+
+
+class ValeurParametreIn(BaseModel):
+    valeur: str = Field(min_length=1, max_length=5000)
+    date_effet: date
+    statut: str = Field(default="confirme", pattern=r"^(confirme|a_confirmer)$")
+    source: Optional[str] = Field(default=None, max_length=200)
+    commentaire: Optional[str] = Field(default=None, max_length=1000)
+
+
+class EtatParametresOut(BaseModel):
+    total: int
+    a_confirmer: int
+    critiques_a_confirmer: int
+    cles_critiques: list[str]
+
+
+class ConfirmationIn(BaseModel):
+    source: str = Field(min_length=3, max_length=200)

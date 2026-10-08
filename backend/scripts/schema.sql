@@ -83,4 +83,47 @@ CREATE TRIGGER trg_journal_audit_immuable
 
 -- Remise à zéro volontaire (tests, bases de développement) : seule voie autorisée, via TRUNCATE.
 
+-- =============================================================
+-- 3. PARAMÉTRAGE (lot 1)
+-- =============================================================
+-- Un paramètre = une règle ou une valeur modifiable par l'administrateur depuis l'application
+-- (taux, plafonds, barèmes, horaires...). La DÉFINITION (libellé, type, bornes) est ici ; les
+-- VALEURS sont datées dans valeurs_parametres : on ajoute une valeur « à partir du ... », on n'écrase
+-- jamais l'historique. Le moteur de paie lit la valeur en vigueur à la date de la période payée.
+--   type_valeur : entier, decimal, montant (FCFA), pourcentage (6.3 = 6,3 %), texte, booleen,
+--                 heure (HH:MM), bareme (liste de tranches en JSON).
+--   critique    : un paramètre critique « à confirmer » bloquera la validation des bulletins.
+CREATE TABLE IF NOT EXISTS parametres (
+    cle VARCHAR(60) PRIMARY KEY,
+    categorie VARCHAR(30) NOT NULL,
+    libelle VARCHAR(150) NOT NULL,
+    description TEXT,
+    type_valeur VARCHAR(12) NOT NULL
+        CHECK (type_valeur IN ('entier', 'decimal', 'montant', 'pourcentage', 'texte', 'booleen', 'heure', 'bareme')),
+    unite VARCHAR(20),
+    valeur_min NUMERIC,
+    valeur_max NUMERIC,
+    choix VARCHAR(200),                       -- texte à choix restreint, séparé par des virgules
+    critique BOOLEAN NOT NULL DEFAULT FALSE,
+    ordre INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS ix_parametres_categorie ON parametres (categorie, ordre);
+
+-- Valeur datée. statut « a_confirmer » = valeur initiale ou provisoire, à vérifier par un responsable.
+CREATE TABLE IF NOT EXISTS valeurs_parametres (
+    id SERIAL PRIMARY KEY,
+    parametre_cle VARCHAR(60) NOT NULL REFERENCES parametres(cle) ON DELETE CASCADE,
+    valeur TEXT NOT NULL,
+    date_effet DATE NOT NULL,
+    statut VARCHAR(12) NOT NULL DEFAULT 'a_confirmer' CHECK (statut IN ('confirme', 'a_confirmer')),
+    source VARCHAR(200),
+    commentaire TEXT,
+    cree_par VARCHAR(20),
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    confirme_par VARCHAR(20),
+    confirme_le TIMESTAMPTZ,
+    UNIQUE (parametre_cle, date_effet)
+);
+CREATE INDEX IF NOT EXISTS ix_valeurs_parametres_cle ON valeurs_parametres (parametre_cle, date_effet DESC);
+
 DO $$ BEGIN RAISE NOTICE 'Schéma SIVOP Paie à jour'; END; $$;

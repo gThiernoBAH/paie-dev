@@ -47,6 +47,9 @@ def base_propre():
     connexion.autocommit = True
     with connexion.cursor() as curseur:
         curseur.execute("TRUNCATE journal_audit, permissions_utilisateurs, utilisateurs RESTART IDENTITY CASCADE")
+        # Les paramètres reviennent à leur état initial (params.sql) avant chaque test.
+        curseur.execute("TRUNCATE valeurs_parametres, parametres RESTART IDENTITY CASCADE")
+        curseur.execute(PARAMS.read_text(encoding="utf-8"))
     connexion.close()
     yield
 

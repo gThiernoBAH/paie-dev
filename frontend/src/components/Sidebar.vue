@@ -24,7 +24,10 @@ const entrees = computed(() => {
     { cle: 'virements', libelle: 'Virements', icone: Landmark, lot: 7 },
     { cle: 'declarations', libelle: 'Déclarations', icone: FileBadge, lot: 7 },
     { cle: 'rapports', libelle: 'Rapports', icone: BarChart3, lot: 10 },
-    { cle: 'parametrage', libelle: 'Paramétrage', icone: SlidersHorizontal, lot: 1 },
+    {
+      cle: 'parametrage', libelle: 'Paramétrage', icone: SlidersHorizontal, vers: '/parametrage',
+      masque: !(aLaPermission(u, 'voir_parametres') || aLaPermission(u, 'gerer_parametres')),
+    },
     {
       cle: 'administration', libelle: 'Administration', icone: ShieldCheck, vers: '/administration',
       masque: !(aLaPermission(u, 'gerer_utilisateurs') || aLaPermission(u, 'voir_audit')),

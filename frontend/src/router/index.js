@@ -4,6 +4,7 @@ import Login from '../components/Login.vue'
 import ChangerMotDePasse from '../components/ChangerMotDePasse.vue'
 import PaieView from '../paie/PaieView.vue'
 import TableauDeBordView from '../paie/components/TableauDeBordView.vue'
+import ParametrageView from '../direction/components/ParametrageView.vue'
 import AdminView from '../direction/components/AdminView.vue'
 import { lireUtilisateur, aLaPermission } from '../api/session'
 
@@ -17,6 +18,7 @@ const routes = [
     children: [
       { path: '', redirect: '/tableau-de-bord' },
       { path: 'tableau-de-bord', name: 'tableau-de-bord', component: TableauDeBordView },
+      { path: 'parametrage', name: 'parametrage', component: ParametrageView, meta: { requiresAnyPermission: ['voir_parametres', 'gerer_parametres'] } },
       // Administration : comptes, droits, journal d'audit (au moins l'une des deux permissions).
       { path: 'administration', name: 'administration', component: AdminView, meta: { requiresAnyPermission: ['gerer_utilisateurs', 'voir_audit'] } },
     ],

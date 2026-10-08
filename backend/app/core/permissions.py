@@ -38,7 +38,7 @@ PERMISSION_REGISTRY = {
 PERMISSIONS_PAR_DEFAUT = {
     "admin": list(PERMISSION_REGISTRY),
     "paie": [
-        "voir_parametres", "voir_salaries", "modifier_salaries", "gerer_pointages",
+        "voir_parametres", "gerer_parametres", "voir_salaries", "modifier_salaries", "gerer_pointages",
         "lancer_paie", "valider_bulletins", "gerer_virements", "voir_declarations", "voir_rapports",
     ],
     "direction": ["voir_parametres", "voir_salaries", "voir_rapports", "voir_declarations", "voir_audit"],

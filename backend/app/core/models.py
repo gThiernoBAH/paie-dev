@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -54,3 +54,42 @@ class JournalAudit(Base):
     cible_id = Column(String(40))
     detail = Column(JSONB)
     adresse_ip = Column(String(45))
+
+
+class Parametre(Base):
+    __tablename__ = "parametres"
+
+    cle = Column(String(60), primary_key=True)
+    categorie = Column(String(30), nullable=False)
+    libelle = Column(String(150), nullable=False)
+    description = Column(Text)
+    type_valeur = Column(String(12), nullable=False)
+    unite = Column(String(20))
+    valeur_min = Column(Numeric)
+    valeur_max = Column(Numeric)
+    choix = Column(String(200))
+    critique = Column(Boolean, nullable=False, default=False)
+    ordre = Column(Integer, nullable=False, default=0)
+
+    valeurs = relationship(
+        "ValeurParametre", cascade="all, delete-orphan", lazy="selectin",
+        order_by="ValeurParametre.date_effet.desc()", back_populates="parametre",
+    )
+
+
+class ValeurParametre(Base):
+    __tablename__ = "valeurs_parametres"
+
+    id = Column(Integer, primary_key=True)
+    parametre_cle = Column(String(60), ForeignKey("parametres.cle", ondelete="CASCADE"), nullable=False)
+    valeur = Column(Text, nullable=False)
+    date_effet = Column(Date, nullable=False)
+    statut = Column(String(12), nullable=False, default="a_confirmer")
+    source = Column(String(200))
+    commentaire = Column(Text)
+    cree_par = Column(String(20))
+    cree_le = Column(DateTime(timezone=True), server_default=func.now())
+    confirme_par = Column(String(20))
+    confirme_le = Column(DateTime(timezone=True))
+
+    parametre = relationship("Parametre", back_populates="valeurs")
