@@ -60,9 +60,9 @@ onMounted(charger)
       <button class="retour" @click="detail = null"><ChevronLeft :size="18" />Retour</button>
       <h2>{{ detail.titre }}</h2>
       <div class="lignes">
-        <div v-for="(l, i) in detail.lignes" :key="i" class="ligne-b">
+        <div v-for="(l, i) in detail.lignes" :key="i" :class="['ligne-b', { total: l.type === 'TO' }]">
           <span>{{ l.libelle }}</span>
-          <strong :class="{ ret: !['GI', 'GN'].includes(l.type) }">{{ ['GI', 'GN'].includes(l.type) ? '' : '− ' }}{{ fmt2(l.montant) }}</strong>
+          <strong :class="{ ret: ['RI', 'RN'].includes(l.type) }">{{ ['RI', 'RN'].includes(l.type) ? '− ' : '' }}{{ fmt2(l.montant) }}</strong>
         </div>
       </div>
       <div class="totaux">
@@ -86,6 +86,7 @@ h1 { font-size: var(--font-size-lg); margin: 0 0 var(--space-3); } h2 { font-siz
 .detail { padding: var(--space-4); } .retour { border: none; background: none; color: var(--color-brand-dark); display: inline-flex; align-items: center; cursor: pointer; padding: 6px 0; min-height: 40px; }
 .lignes { display: flex; flex-direction: column; } .ligne-b { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--color-border); font-size: var(--font-size-sm); }
 .ret { color: var(--color-rouge); }
+.total { background: #F8FAFC; font-weight: 600; }
 .totaux { margin-top: var(--space-3); display: flex; flex-direction: column; gap: 6px; font-size: var(--font-size-sm); } .totaux div { display: flex; justify-content: space-between; }
 .net-final { font-size: var(--font-size-base); padding: 10px; background: #F1F5F9; border-radius: var(--radius-md); }
 </style>

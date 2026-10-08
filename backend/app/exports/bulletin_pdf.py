@@ -14,6 +14,7 @@ from ..core import crypto, models
 from ..services import nombres
 from ..services import parametres as param
 
+TOTAUX_COTE_GAINS = {"TIG", "TI", "TNG", "TNI", "NET"}   # lignes de total affichées dans la colonne « Gains »
 MOIS = ["", "janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"]
 
 
@@ -65,8 +66,11 @@ def _page_bulletin(db: Session, b: models.Bulletin, campagne: models.Campagne, e
     elements += [identite, Spacer(1, 3 * mm)]
 
     donnees = [["Code", "Désignation", "Quantité", "Taux", "Gains", "Retenues"]]
+    lignes_total = []
     for l in b.lignes:
-        gain = l["type"] in ("GI", "GN")
+        if l["type"] == "TO":
+            lignes_total.append(len(donnees))
+        gain = l["type"] in ("GI", "GN") or (l["type"] == "TO" and l["code"] in TOTAUX_COTE_GAINS)
         montant = _fcfa(l["montant"])
         donnees.append([l["code"], l["libelle"], _nombre(l.get("quantite")), _nombre(l.get("taux")),
                         montant if gain else "", "" if gain else montant])
@@ -75,6 +79,8 @@ def _page_bulletin(db: Session, b: models.Bulletin, campagne: models.Campagne, e
         ("FONTSIZE", (0, 0), (-1, -1), 8), ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"), ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
         ("GRID", (0, 0), (-1, -1), 0.25, colors.lightgrey), ("TOPPADDING", (0, 0), (-1, -1), 1.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
+        *[("FONTNAME", (0, i), (-1, i), "Helvetica-Bold") for i in lignes_total],
+        *[("BACKGROUND", (0, i), (-1, i), colors.HexColor("#f3f4f6")) for i in lignes_total],
     ]))
     elements += [table, Spacer(1, 3 * mm)]
 

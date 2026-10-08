@@ -33,6 +33,7 @@ const nouvelleSaisie = ref({ matricule: '', code: '', montant: '', commentaire: 
 const LIBELLES = { ouverte: 'Ouverte', calculee: 'Calculée', validee: 'Validée', cloturee: 'Clôturée' }
 const figee = computed(() => campagne.value && ['validee', 'cloturee'].includes(campagne.value.statut))
 const fmt = (n) => Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 })
+const coteGains = (l) => ['GI', 'GN'].includes(l.type) || (l.type === 'TO' && ['TIG', 'TI', 'TNG', 'TNI', 'NET'].includes(l.code))
 const dateFr = (d) => d.split('-').reverse().join('/')
 
 async function recharger() {
@@ -283,7 +284,7 @@ onMounted(async () => {
           <tbody>
             <tr v-for="(l, i) in detail.lignes" :key="i">
               <td>{{ l.code }}</td><td>{{ l.libelle }}</td><td class="num">{{ l.quantite ? fmt(l.quantite) : '' }}</td><td class="num">{{ l.taux ? fmt(l.taux) : '' }}</td>
-              <td class="num">{{ ['GI', 'GN'].includes(l.type) ? fmt(l.montant) : '' }}</td><td class="num">{{ ['GI', 'GN'].includes(l.type) ? '' : fmt(l.montant) }}</td>
+              <td class="num">{{ coteGains(l) ? fmt(l.montant) : '' }}</td><td class="num">{{ coteGains(l) ? '' : fmt(l.montant) }}</td>
             </tr>
           </tbody></table></div>
         <div class="kpis">
