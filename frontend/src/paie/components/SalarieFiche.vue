@@ -24,15 +24,16 @@ const enCours = ref(false)
 const rib = ref(''); const cnps = ref(''); const sensibleCharge = ref(false)
 let ribOrigine = ''; let cnpsOrigine = ''
 const salaireInitial = ref('')
+const sursalaireInitial = ref('')
 const historique = ref([])
-const nouvelleEvolution = ref({ date_effet: new Date().toISOString().slice(0, 10), montant: '', motif: '' })
+const nouvelleEvolution = ref({ date_effet: new Date().toISOString().slice(0, 10), montant: '', sursalaire: '', motif: '' })
 const compteCree = ref(null)
 const sortie = ref({ date_sortie: new Date().toISOString().slice(0, 10), motif_sortie: '' })
 const afficherSortie = ref(false)
 const partsSuggerees = ref(null)
 
 const CHAMPS = ['nom', 'prenoms', 'sexe', 'date_naissance', 'lieu_naissance', 'nationalite', 'situation_matrimoniale',
-  'nombre_enfants', 'nombre_parts', 'nombre_personnes_cmu', 'telephone', 'email', 'adresse', 'ville', 'date_embauche',
+  'nombre_enfants', 'nombre_parts', 'nombre_personnes_cmu', 'indemnite_transport', 'telephone', 'email', 'adresse', 'ville', 'date_embauche',
   'type_remuneration', 'eligible_heures_sup', 'mode_paiement']
 const LIENS = ['type_contrat', 'service', 'section', 'emploi', 'categorie', 'site', 'banque']
 const lectureSeule = computed(() => !peutModifier || (fiche.value && !fiche.value.est_actif))
@@ -89,6 +90,7 @@ async function enregistrer() {
     if (cnps.value.trim() !== cnpsOrigine) c.numero_cnps = cnps.value.trim() || null
     if (nouveau) {
       if (salaireInitial.value !== '') c.salaire_base = Number(String(salaireInitial.value).replace(',', '.'))
+      if (sursalaireInitial.value !== '') c.sursalaire = Number(String(sursalaireInitial.value).replace(',', '.'))
       const { data } = await apiClient.post('/salaries', c)
       router.replace(`/salaries/${data.id}`)
       return
@@ -111,9 +113,9 @@ async function ajouterEvolution() {
   erreur.value = ''
   try {
     const e = nouvelleEvolution.value
-    const { data } = await apiClient.post(`/salaries/${fiche.value.id}/salaires`, { date_effet: e.date_effet, montant: Number(String(e.montant).replace(',', '.')), motif: e.motif || null })
+    const { data } = await apiClient.post(`/salaries/${fiche.value.id}/salaires`, { date_effet: e.date_effet, montant: Number(String(e.montant).replace(',', '.')), sursalaire: Number(String(e.sursalaire || 0).replace(',', '.')), motif: e.motif || null })
     historique.value = data
-    nouvelleEvolution.value.montant = ''; nouvelleEvolution.value.motif = ''
+    nouvelleEvolution.value.montant = ''; nouvelleEvolution.value.sursalaire = ''; nouvelleEvolution.value.motif = ''
     appliquer((await apiClient.get(`/salaries/${fiche.value.id}`)).data)
   } catch (err) { erreur.value = messageErreur(err) }
 }
@@ -193,7 +195,9 @@ onMounted(charger)
         <label class="field"><span class="field-label">Type de rémunération</span>
           <select v-model="f.type_remuneration" class="input"><option value="mensuel">Mensuel</option><option value="journalier">Journalier (payé par quinzaine)</option></select></label>
         <label class="case"><input v-model="f.eligible_heures_sup" type="checkbox" /> Éligible aux heures supplémentaires</label>
-        <label v-if="nouveau && peutSensible" class="field"><span class="field-label">{{ f.type_remuneration === 'journalier' ? 'Taux journalier' : 'Salaire de base mensuel' }} (FCFA)</span><input v-model="salaireInitial" class="input" inputmode="decimal" /></label>
+        <label v-if="nouveau && peutSensible" class="field"><span class="field-label">Salaire catégoriel mensuel (FCFA){{ f.type_remuneration === 'journalier' ? ' — référence mensuelle du journalier (75 000)' : '' }}</span><input v-model="salaireInitial" class="input" inputmode="decimal" /></label>
+        <label v-if="nouveau && peutSensible && f.type_remuneration === 'mensuel'" class="field"><span class="field-label">Sursalaire mensuel (FCFA)</span><input v-model="sursalaireInitial" class="input" inputmode="decimal" /></label>
+        <label v-if="f.type_remuneration === 'mensuel'" class="field"><span class="field-label">Indemnité de transport convenue (FCFA / mois)</span><input v-model="f.indemnite_transport" class="input" inputmode="decimal" placeholder="Valeur du paramétrage" /></label>
         <label class="field"><span class="field-label">Mode de paiement</span>
           <select v-model="f.mode_paiement" class="input"><option value="virement">Virement</option><option value="especes">Espèces</option><option value="cheque">Chèque</option></select></label>
         <label class="field"><span class="field-label">Banque</span><select v-model="f.banque_id" class="input"><option value="">—</option><option v-for="r in refs.banque" :key="r.id" :value="r.id">{{ r.libelle }}</option></select></label>
@@ -215,15 +219,16 @@ onMounted(charger)
 
     <section v-if="!nouveau && peutSensible" class="card bloc large">
       <h2>Salaire</h2>
-      <p v-if="fiche?.salaire_actuel" class="actuel">{{ montant(fiche.salaire_actuel.montant) }} F <small>({{ fiche.type_remuneration === 'journalier' ? 'par jour' : 'par mois' }}, depuis le {{ dateFr(fiche.salaire_actuel.date_effet) }})</small></p>
+      <p v-if="fiche?.salaire_actuel" class="actuel">{{ montant(fiche.salaire_actuel.montant) }} F <small>catégoriel{{ fiche.salaire_actuel.sursalaire ? ` + ${montant(fiche.salaire_actuel.sursalaire)} F de sursalaire` : '' }} (par mois, depuis le {{ dateFr(fiche.salaire_actuel.date_effet) }})</small></p>
       <p v-else class="aide">Aucun salaire en vigueur.</p>
       <table v-if="historique.length" class="histo">
-        <thead><tr><th>À partir du</th><th class="num">Montant</th><th>Motif</th><th>Saisi par</th></tr></thead>
-        <tbody><tr v-for="e in historique" :key="e.id"><td>{{ dateFr(e.date_effet) }}</td><td class="num">{{ montant(e.montant) }} F</td><td>{{ e.motif || '' }}</td><td>{{ e.cree_par }}</td></tr></tbody>
+        <thead><tr><th>À partir du</th><th class="num">Catégoriel</th><th class="num">Sursalaire</th><th>Motif</th><th>Saisi par</th></tr></thead>
+        <tbody><tr v-for="e in historique" :key="e.id"><td>{{ dateFr(e.date_effet) }}</td><td class="num">{{ montant(e.montant) }} F</td><td class="num">{{ montant(e.sursalaire) }} F</td><td>{{ e.motif || '' }}</td><td>{{ e.cree_par }}</td></tr></tbody>
       </table>
       <form v-if="peutModifier && fiche?.est_actif" class="ligne-evol" @submit.prevent="ajouterEvolution">
         <input v-model="nouvelleEvolution.date_effet" class="input" type="date" required aria-label="Date d'effet" />
-        <input v-model="nouvelleEvolution.montant" class="input" inputmode="decimal" placeholder="Nouveau montant" required aria-label="Nouveau montant" />
+        <input v-model="nouvelleEvolution.montant" class="input" inputmode="decimal" placeholder="Salaire catégoriel" required aria-label="Nouveau salaire catégoriel" />
+        <input v-model="nouvelleEvolution.sursalaire" class="input" inputmode="decimal" placeholder="Sursalaire" aria-label="Nouveau sursalaire" />
         <input v-model="nouvelleEvolution.motif" class="input" placeholder="Motif (promotion, ajustement…)" aria-label="Motif" />
         <button class="vbtn vbtn-primary" type="submit">Ajouter</button>
       </form>

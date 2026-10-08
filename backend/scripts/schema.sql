@@ -204,4 +204,52 @@ CREATE TABLE IF NOT EXISTS evolutions_salaire (
     UNIQUE (salarie_id, date_effet)
 );
 
+-- =============================================================
+-- 5. POINTAGES, RUBRIQUES (lot 4)
+-- =============================================================
+-- Jours fériés (fixes et mobiles) : majorent les heures travaillées (HS3 de jour, HS4 de nuit).
+-- Les fêtes religieuses mobiles sont saisies par l'administrateur chaque année.
+CREATE TABLE IF NOT EXISTS jours_feries (
+    jour DATE PRIMARY KEY,
+    libelle VARCHAR(100) NOT NULL
+);
+
+-- Un fichier de pointages importé (traçabilité : qui, quand, combien de lignes, lesquelles rejetées).
+CREATE TABLE IF NOT EXISTS imports_pointages (
+    id SERIAL PRIMARY KEY,
+    nom_fichier VARCHAR(200),
+    importe_par VARCHAR(20),
+    importe_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    nb_lignes INTEGER NOT NULL DEFAULT 0,
+    nb_jours INTEGER NOT NULL DEFAULT 0,
+    nb_rejets INTEGER NOT NULL DEFAULT 0,
+    rejets JSONB
+);
+
+-- Une ligne par salarié et par jour : première entrée et dernière sortie.
+CREATE TABLE IF NOT EXISTS pointages (
+    id BIGSERIAL PRIMARY KEY,
+    salarie_id INTEGER NOT NULL REFERENCES salaries(id),
+    jour DATE NOT NULL,
+    heure_entree TIME,
+    heure_sortie TIME,
+    source VARCHAR(10) NOT NULL DEFAULT 'manuel' CHECK (source IN ('import', 'manuel')),
+    import_id INTEGER REFERENCES imports_pointages(id) ON DELETE SET NULL,
+    commentaire VARCHAR(200),
+    cree_par VARCHAR(20),
+    modifie_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (salarie_id, jour)
+);
+CREATE INDEX IF NOT EXISTS ix_pointages_jour ON pointages (jour);
+
+-- Catalogue des rubriques variables saisissables sur un bulletin (primes, retenues, acomptes...).
+--   type : GI gain imposable, GN gain non imposable, RI retenue imposable, RN retenue non imposable.
+CREATE TABLE IF NOT EXISTS rubriques (
+    code VARCHAR(6) PRIMARY KEY,
+    libelle VARCHAR(100) NOT NULL,
+    type VARCHAR(2) NOT NULL CHECK (type IN ('GI', 'GN', 'RI', 'RN')),
+    montant_defaut NUMERIC(14,2),
+    est_actif BOOLEAN NOT NULL DEFAULT TRUE
+);
+
 DO $$ BEGIN RAISE NOTICE 'Schéma SIVOP Paie à jour'; END; $$;

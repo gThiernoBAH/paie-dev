@@ -10,6 +10,17 @@ const TYPES = {
   site: 'Sites', banque: 'Banques', type_contrat: 'Types de contrat',
 }
 const type = ref('service')
+// --- Rubriques de paie (catalogue des lignes saisissables sur un bulletin) ---
+const rubriques = ref([])
+const nouvelleRub = ref({ code: '', libelle: '', type: 'GI' })
+const TYPES_RUB = { GI: 'Gain imposable', GN: 'Gain non imposable', RI: 'Retenue imposable', RN: 'Retenue non imposable' }
+const peutRubriques = aLaPermission(lireUtilisateur(), 'gerer_parametres')
+async function chargerRub() { try { rubriques.value = (await apiClient.get('/rubriques', { params: { inclure_inactives: true } })).data } catch (e) { erreur.value = messageErreur(e) } }
+async function ajouterRub() {
+  erreur.value = ''
+  try { await apiClient.post('/rubriques', nouvelleRub.value); nouvelleRub.value = { code: '', libelle: '', type: 'GI' }; await chargerRub() } catch (e) { erreur.value = messageErreur(e) }
+}
+async function basculerRub(r) { try { await apiClient.patch(`/rubriques/${r.code}`, { est_actif: !r.est_actif }); await chargerRub() } catch (e) { erreur.value = messageErreur(e) } }
 const lignes = ref([])
 const nouveau = ref({ code: '', libelle: '' })
 const erreur = ref('')
@@ -35,7 +46,7 @@ async function renommer(l) {
   erreur.value = ''
   try { await apiClient.patch(`/referentiels/${l.id}`, { libelle: enEdition.value.libelle }); enEdition.value = null; await charger() } catch (e) { erreur.value = messageErreur(e) }
 }
-onMounted(charger)
+onMounted(() => { charger(); chargerRub() })
 </script>
 
 <template>
@@ -46,16 +57,17 @@ onMounted(charger)
     </header>
     <div class="puces">
       <button v-for="(lib, cle) in TYPES" :key="cle" :class="['puce', { active: type === cle }]" @click="type = cle">{{ lib }}</button>
+      <button :class="['puce', { active: type === 'rub' }]" @click="type = 'rub'">Rubriques de paie</button>
     </div>
     <p v-if="erreur" class="message-erreur" role="alert">{{ erreur }}</p>
 
-    <form v-if="peutModifier" class="ajout" @submit.prevent="ajouter">
+    <form v-if="peutModifier && type !== 'rub'" class="ajout" @submit.prevent="ajouter">
       <input v-model="nouveau.code" class="input code" placeholder="Code" required maxlength="20" aria-label="Code" />
       <input v-model="nouveau.libelle" class="input" placeholder="Libellé" required aria-label="Libellé" />
       <button class="vbtn vbtn-primary" type="submit"><Plus :size="16" />Ajouter</button>
     </form>
 
-    <div class="card tableau-cadre">
+    <div v-if="type !== 'rub'" class="card tableau-cadre">
       <table>
         <thead><tr><th>Code</th><th>Libellé</th><th>Statut</th><th></th></tr></thead>
         <tbody>
@@ -79,6 +91,26 @@ onMounted(charger)
         </tbody>
       </table>
     </div>
+
+    <template v-if="type === 'rub'">
+      <p class="sous-titre">Lignes que le gestionnaire peut ajouter à un bulletin (primes, acomptes, retenues…). Le type décide de l'effet sur l'impôt et le net.</p>
+      <form v-if="peutRubriques" class="ajout" @submit.prevent="ajouterRub">
+        <input v-model="nouvelleRub.code" class="input code" placeholder="Code" required maxlength="6" aria-label="Code rubrique" />
+        <input v-model="nouvelleRub.libelle" class="input" placeholder="Libellé" required aria-label="Libellé rubrique" />
+        <select v-model="nouvelleRub.type" class="input code" aria-label="Type"><option v-for="(l, k) in TYPES_RUB" :key="k" :value="k">{{ k }} — {{ l }}</option></select>
+        <button class="vbtn vbtn-primary" type="submit"><Plus :size="16" />Ajouter</button>
+      </form>
+      <div class="card tableau-cadre"><table>
+        <thead><tr><th>Code</th><th>Libellé</th><th>Type</th><th>Statut</th><th></th></tr></thead>
+        <tbody>
+          <tr v-for="r in rubriques" :key="r.code">
+            <td><code>{{ r.code }}</code></td><td :class="{ inactif: !r.est_actif }">{{ r.libelle }}</td>
+            <td><span class="badge badge-info">{{ r.type }}</span> <small>{{ TYPES_RUB[r.type] }}</small></td>
+            <td><span :class="['badge', r.est_actif ? 'badge-ok' : '']">{{ r.est_actif ? 'Actif' : 'Désactivé' }}</span></td>
+            <td class="actions"><button v-if="peutRubriques" class="vbtn vbtn-secondary" @click="basculerRub(r)">{{ r.est_actif ? 'Désactiver' : 'Réactiver' }}</button></td>
+          </tr>
+        </tbody></table></div>
+    </template>
   </div>
 </template>
 

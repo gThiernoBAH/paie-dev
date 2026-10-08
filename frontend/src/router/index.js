@@ -7,6 +7,7 @@ import TableauDeBordView from '../paie/components/TableauDeBordView.vue'
 import SalariesView from '../paie/components/SalariesView.vue'
 import SalarieFiche from '../paie/components/SalarieFiche.vue'
 import ReferentielsView from '../direction/components/ReferentielsView.vue'
+import PointagesView from '../paie/components/PointagesView.vue'
 import ParametrageView from '../direction/components/ParametrageView.vue'
 import AdminView from '../direction/components/AdminView.vue'
 import { lireUtilisateur, aLaPermission } from '../api/session'
@@ -24,6 +25,7 @@ const routes = [
       { path: 'salaries', name: 'salaries', component: SalariesView, meta: { requiresAnyPermission: ['voir_salaries'] } },
       { path: 'salaries/:id', name: 'salarie', component: SalarieFiche, meta: { requiresAnyPermission: ['voir_salaries'] } },
       { path: 'referentiels', name: 'referentiels', component: ReferentielsView, meta: { requiresAnyPermission: ['voir_salaries'] } },
+      { path: 'pointages', name: 'pointages', component: PointagesView, meta: { requiresAnyPermission: ['gerer_pointages'] } },
       { path: 'parametrage', name: 'parametrage', component: ParametrageView, meta: { requiresAnyPermission: ['voir_parametres', 'gerer_parametres'] } },
       // Administration : comptes, droits, journal d'audit (au moins l'une des deux permissions).
       { path: 'administration', name: 'administration', component: AdminView, meta: { requiresAnyPermission: ['gerer_utilisateurs', 'voir_audit'] } },

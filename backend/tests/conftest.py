@@ -48,7 +48,7 @@ def base_propre():
     with connexion.cursor() as curseur:
         curseur.execute("TRUNCATE journal_audit, permissions_utilisateurs, utilisateurs RESTART IDENTITY CASCADE")
         # Les paramètres reviennent à leur état initial (params.sql) avant chaque test.
-        curseur.execute("TRUNCATE valeurs_parametres, parametres, evolutions_salaire, salaries, referentiels RESTART IDENTITY CASCADE")
+        curseur.execute("TRUNCATE valeurs_parametres, parametres, pointages, imports_pointages, jours_feries, rubriques, evolutions_salaire, salaries, referentiels RESTART IDENTITY CASCADE")
         curseur.execute(PARAMS.read_text(encoding="utf-8"))
     connexion.close()
     yield

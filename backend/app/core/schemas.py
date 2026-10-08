@@ -261,3 +261,47 @@ class EvolutionSalaireIn(BaseModel):
 class SortieIn(BaseModel):
     date_sortie: date
     motif_sortie: str = Field(min_length=2, max_length=40)
+
+
+# --- Pointages, rubriques, jours fériés (lot 4) ---
+class PointageOut(BaseModel):
+    id: int
+    salarie_id: int
+    matricule: str
+    nom: str
+    jour: date
+    heure_entree: Optional[str] = None
+    heure_sortie: Optional[str] = None
+    source: str
+    commentaire: Optional[str] = None
+
+
+class PointageIn(BaseModel):
+    salarie_id: int
+    jour: date
+    heure_entree: Optional[str] = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    heure_sortie: Optional[str] = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    commentaire: Optional[str] = Field(default=None, max_length=200)
+
+
+class ImportPointagesIn(BaseModel):
+    nom_fichier: str = Field(default="import.csv", max_length=200)
+    contenu: str = Field(min_length=1, max_length=5_000_000)
+
+
+class JourFerieIn(BaseModel):
+    jour: date
+    libelle: str = Field(min_length=1, max_length=100)
+
+
+class RubriqueIn(BaseModel):
+    code: str = Field(min_length=1, max_length=6, pattern=r"^[A-Za-z0-9]+$")
+    libelle: str = Field(min_length=1, max_length=100)
+    type: str = Field(pattern=r"^(GI|GN|RI|RN)$")
+    montant_defaut: Optional[float] = Field(default=None, ge=0)
+
+
+class RubriqueModifIn(BaseModel):
+    libelle: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    montant_defaut: Optional[float] = Field(default=None, ge=0)
+    est_actif: Optional[bool] = None

@@ -317,3 +317,61 @@ INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'COR
 INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'UBA', 'United Bank for Africa CI', 100) ON CONFLICT (type_ref, code) DO NOTHING;
 INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'BNI', 'Banque Nationale d''Investissement', 110) ON CONFLICT (type_ref, code) DO NOTHING;
 INSERT INTO referentiels (type_ref, code, libelle, ordre) VALUES ('banque', 'AUTRE', 'Autre banque', 120) ON CONFLICT (type_ref, code) DO NOTHING;
+
+-- LOT 4 : pointages et présences
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('pointage_pause_minutes', 'pointages', 'Pause déduite du temps de présence', 'Minutes retirées d''une journée de pointage dont la durée dépasse le seuil ci-dessous.', 'entier', 'min', 0, 240, NULL, FALSE, 490)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('pointage_pause_minutes', '60', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('pointage_pause_seuil_heures', 'pointages', 'Seuil de durée pour déduire la pause', 'Une pause n''est déduite que si la présence dépasse cette durée.', 'decimal', 'h', 0, 24, NULL, FALSE, 500)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('pointage_pause_seuil_heures', '6', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('pointage_jours_ouvres', 'pointages', 'Jours ouvrés de la semaine', 'Numéros des jours travaillés, du lundi (1) au dimanche (7). Sert à repérer les absences sans pointage.', 'texte', NULL, NULL, NULL, NULL, FALSE, 510)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('pointage_jours_ouvres', '1,2,3,4,5', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('pointage_absences_automatiques', 'pointages', 'Proposer les absences détectées', 'Si oui, un jour ouvré sans pointage est proposé comme absence lors du calcul des présences.', 'booleen', NULL, NULL, NULL, NULL, FALSE, 520)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('pointage_absences_automatiques', 'false', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+
+-- LOT 4 : rubriques usuelles et jours fériés fixes (modifiables dans l'application ; jamais écrasés)
+INSERT INTO rubriques (code, libelle, type) VALUES ('SAL', 'Rappel de salaire', 'GI') ON CONFLICT (code) DO NOTHING;
+INSERT INTO rubriques (code, libelle, type) VALUES ('PRI', 'Prime exceptionnelle imposable', 'GI') ON CONFLICT (code) DO NOTHING;
+INSERT INTO rubriques (code, libelle, type) VALUES ('PRN', 'Prime non imposable', 'GN') ON CONFLICT (code) DO NOTHING;
+INSERT INTO rubriques (code, libelle, type) VALUES ('PRC', 'Prime de précarité', 'GN') ON CONFLICT (code) DO NOTHING;
+INSERT INTO rubriques (code, libelle, type) VALUES ('ACO', 'Acompte sur salaire', 'RN') ON CONFLICT (code) DO NOTHING;
+INSERT INTO rubriques (code, libelle, type) VALUES ('AS1', 'Assurance', 'RN') ON CONFLICT (code) DO NOTHING;
+INSERT INTO rubriques (code, libelle, type) VALUES ('PRE', 'Remboursement de prêt', 'RN') ON CONFLICT (code) DO NOTHING;
+INSERT INTO rubriques (code, libelle, type) VALUES ('RET', 'Retenue diverse', 'RN') ON CONFLICT (code) DO NOTHING;
+INSERT INTO rubriques (code, libelle, type) VALUES ('RTI', 'Retenue imposable diverse', 'RI') ON CONFLICT (code) DO NOTHING;
+-- Les fêtes religieuses mobiles (Aïd, Tabaski, Maouloud...) sont à ajouter chaque année depuis l'application.
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2026-01-01', 'Jour de l''An') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2026-04-06', 'Lundi de Pâques') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2026-05-01', 'Fête du Travail') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2026-05-14', 'Ascension') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2026-05-25', 'Lundi de Pentecôte') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2026-08-07', 'Fête nationale') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2026-08-15', 'Assomption') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2026-11-01', 'Toussaint') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2026-11-15', 'Journée nationale de la Paix') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2026-12-25', 'Noël') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2027-01-01', 'Jour de l''An') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2027-03-29', 'Lundi de Pâques') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2027-05-01', 'Fête du Travail') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2027-05-06', 'Ascension') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2027-05-17', 'Lundi de Pentecôte') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2027-08-07', 'Fête nationale') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2027-08-15', 'Assomption') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2027-11-01', 'Toussaint') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2027-11-15', 'Journée nationale de la Paix') ON CONFLICT (jour) DO NOTHING;
+INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2027-12-25', 'Noël') ON CONFLICT (jour) DO NOTHING;

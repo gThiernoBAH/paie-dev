@@ -18,7 +18,7 @@ const entrees = computed(() => {
     { cle: 'tableau', libelle: 'Tableau de bord', icone: LayoutDashboard, vers: '/tableau-de-bord' },
     { cle: 'salaries', libelle: 'Salariés', icone: Users, vers: '/salaries', masque: !aLaPermission(u, 'voir_salaries') },
     { cle: 'referentiels', libelle: 'Référentiels', icone: ListChecks, vers: '/referentiels', masque: !aLaPermission(u, 'voir_salaries') },
-    { cle: 'pointages', libelle: 'Pointages', icone: Clock, lot: 4 },
+    { cle: 'pointages', libelle: 'Pointages', icone: Clock, vers: '/pointages', masque: !aLaPermission(u, 'gerer_pointages') },
     { cle: 'campagnes', libelle: 'Campagnes de paie', icone: CalendarRange, lot: 5 },
     { cle: 'bulletins', libelle: 'Bulletins', icone: FileText, lot: 5 },
     { cle: 'conges', libelle: 'Congés', icone: Palmtree, lot: 6 },

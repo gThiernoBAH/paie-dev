@@ -184,3 +184,11 @@ def test_droits(client, db, admin):
     assert client.get("/referentiels", headers=h).status_code == 403
     assert client.post("/salaries", headers=h, json={"nom": "X"}).status_code == 403
     assert client.get("/salaries").status_code == 401
+
+
+def test_sursalaire_et_transport(client, admin):
+    s = _salarie(client, admin, salaire_base=135540, sursalaire=69899, indemnite_transport=38102, date_embauche="2024-01-01")
+    assert s["salaire_actuel"] == {"montant": 135540, "sursalaire": 69899, "date_effet": "2024-01-01"}
+    assert s["indemnite_transport"] == 38102
+    r = client.post(f"/salaries/{s['id']}/salaires", headers=admin, json={"date_effet": "2026-01-01", "montant": 140000, "sursalaire": 70000})
+    assert r.json()[0]["sursalaire"] == 70000

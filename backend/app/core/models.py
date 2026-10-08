@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import BigInteger, Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, Time
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -172,3 +172,48 @@ class EvolutionSalaire(Base):
     cree_le = Column(DateTime(timezone=True), server_default=func.now())
 
     salarie = relationship("Salarie", back_populates="evolutions")
+
+
+class JourFerie(Base):
+    __tablename__ = "jours_feries"
+
+    jour = Column(Date, primary_key=True)
+    libelle = Column(String(100), nullable=False)
+
+
+class ImportPointages(Base):
+    __tablename__ = "imports_pointages"
+
+    id = Column(Integer, primary_key=True)
+    nom_fichier = Column(String(200))
+    importe_par = Column(String(20))
+    importe_le = Column(DateTime(timezone=True), server_default=func.now())
+    nb_lignes = Column(Integer, nullable=False, default=0)
+    nb_jours = Column(Integer, nullable=False, default=0)
+    nb_rejets = Column(Integer, nullable=False, default=0)
+    rejets = Column(JSONB)
+
+
+class Pointage(Base):
+    __tablename__ = "pointages"
+
+    id = Column(BigInteger, primary_key=True)
+    salarie_id = Column(Integer, ForeignKey("salaries.id"), nullable=False)
+    jour = Column(Date, nullable=False)
+    heure_entree = Column(Time)
+    heure_sortie = Column(Time)
+    source = Column(String(10), nullable=False, default="manuel")
+    import_id = Column(Integer, ForeignKey("imports_pointages.id", ondelete="SET NULL"))
+    commentaire = Column(String(200))
+    cree_par = Column(String(20))
+    modifie_le = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Rubrique(Base):
+    __tablename__ = "rubriques"
+
+    code = Column(String(6), primary_key=True)
+    libelle = Column(String(100), nullable=False)
+    type = Column(String(2), nullable=False)
+    montant_defaut = Column(Numeric(14, 2))
+    est_actif = Column(Boolean, nullable=False, default=True)
