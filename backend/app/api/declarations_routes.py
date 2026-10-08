@@ -17,11 +17,19 @@ VOIR = require_permission("voir_declarations")
 TYPES = ("cnps", "its", "fdfp", "disa")
 
 
+def _nom_fichier(titre: str) -> str:
+    """Nom de fichier sûr pour l'en-tête HTTP : ASCII, sans espace ni barre oblique."""
+    import re
+    import unicodedata
+    ascii_ = unicodedata.normalize("NFKD", titre).encode("ascii", "ignore").decode()
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", ascii_).strip("_").lower() or "export"
+
+
 def _reponse(titre: str, entetes: list, lignes: list, totaux: Optional[dict], format: str, sous_titre: Optional[str] = None):
     if format == "json":
         return {"titre": titre, "entetes": entetes, "lignes": [[str(v) if not isinstance(v, (str, int, type(None))) else v for v in l] for l in lignes],
                 "totaux": {k: str(v) for k, v in (totaux or {}).items()}}
-    nom = titre.replace(" ", "_").lower()
+    nom = _nom_fichier(titre)
     contenu = fichiers.xlsx(titre, entetes, lignes, totaux, sous_titre or titre) if format == "xlsx" else fichiers.csv_fr(entetes, lignes)
     return Response(content=contenu, media_type=fichiers.MEDIA[format], headers={"Content-Disposition": f'attachment; filename="{nom}.{format}"'})
 

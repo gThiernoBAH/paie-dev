@@ -24,7 +24,7 @@ const entrees = computed(() => {
     { cle: 'prets', libelle: 'Prêts et avances', icone: Wallet, vers: '/prets', masque: !aLaPermission(u, 'gerer_conges') },
     { cle: 'virements', libelle: 'Virements', icone: Landmark, vers: '/virements', masque: !aLaPermission(u, 'gerer_virements') },
     { cle: 'declarations', libelle: 'Déclarations', icone: FileBadge, vers: '/declarations', masque: !aLaPermission(u, 'voir_declarations') },
-    { cle: 'rapports', libelle: 'Rapports', icone: BarChart3, lot: 10 },
+    { cle: 'rapports', libelle: 'Rapports', icone: BarChart3, vers: '/rapports', masque: !aLaPermission(u, 'voir_rapports') },
     {
       cle: 'parametrage', libelle: 'Paramétrage', icone: SlidersHorizontal, vers: '/parametrage',
       masque: !(aLaPermission(u, 'voir_parametres') || aLaPermission(u, 'gerer_parametres')),

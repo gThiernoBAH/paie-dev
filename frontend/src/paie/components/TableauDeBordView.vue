@@ -1,24 +1,19 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import apiClient from '@/api/client'
-import { lireUtilisateur, aLaPermission } from '@/api/session'
-import { ShieldCheck, Lock, KeyRound, ScrollText, SlidersHorizontal, AlertTriangle } from 'lucide-vue-next'
+import { lireUtilisateur } from '@/api/session'
+import { Users, Wallet, CalendarRange, Palmtree, Landmark, Mail, SlidersHorizontal, ArrowRight } from 'lucide-vue-next'
 
 const utilisateur = lireUtilisateur()
+const t = ref(null)
+const fmt = (n) => Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 0 })
+onMounted(async () => { try { t.value = (await apiClient.get('/tableau-de-bord')).data } catch { /* indicateurs facultatifs */ } })
 
-// Alerte « paramètres à confirmer » : visible seulement pour qui peut consulter le paramétrage.
-const etat = ref(null)
-onMounted(async () => {
-  if (!aLaPermission(utilisateur, 'voir_parametres')) return
-  try { etat.value = (await apiClient.get('/parametres/etat')).data } catch { /* le bandeau est facultatif */ }
-})
-
-const livre = [
-  { icone: Lock, titre: 'Connexion par matricule', texte: 'Jeton signé, verrouillage après échecs répétés, mot de passe personnel imposé à la première connexion.' },
-  { icone: KeyRound, titre: 'Rôles et permissions', texte: 'Quatre rôles, des permissions fines par compte, aucune élévation de privilèges possible.' },
-  { icone: ScrollText, titre: 'Journal d\'audit', texte: 'Connexions, créations de comptes, changements de droits : tracés et non modifiables.' },
-  { icone: ShieldCheck, titre: 'Champs sensibles chiffrés', texte: 'Le chiffrement est prêt pour le RIB et le numéro CNPS, utilisé dès le lot 2 (salariés).' },
-  { icone: SlidersHorizontal, titre: 'Paramétrage daté', texte: 'Taux, plafonds, barèmes : valeur en vigueur par date, historique, statut confirmé / à confirmer.', lot: 1 },
+const attentes = [
+  { cle: 'parametres_critiques_a_confirmer', icone: SlidersHorizontal, texte: (n) => `${n} paramètre(s) critique(s) à confirmer — la validation des bulletins est bloquée`, vers: '/parametrage' },
+  { cle: 'conges_en_attente', icone: Palmtree, texte: (n) => `${n} demande(s) de congé à traiter`, vers: '/conges' },
+  { cle: 'virements_a_lancer', icone: Landmark, texte: (n) => `${n} lot(s) de virement préparé(s), pas encore lancé(s)`, vers: '/virements' },
+  { cle: 'envois_en_echec', icone: Mail, texte: (n) => `${n} envoi(s) de bulletin par e-mail en échec`, vers: '/campagnes' },
 ]
 </script>
 
@@ -26,35 +21,48 @@ const livre = [
   <div class="page">
     <header>
       <h1>Tableau de bord</h1>
-      <p class="sous-titre">Bonjour {{ utilisateur?.prenom || utilisateur?.nom }}. Le socle de l'application est en place ; les indicateurs de paie arriveront avec les lots suivants.</p>
+      <p class="sous-titre">Bonjour {{ utilisateur?.prenom || utilisateur?.nom }}.</p>
     </header>
 
-    <router-link v-if="etat && etat.a_confirmer" to="/parametrage" class="alerte">
-      <AlertTriangle :size="18" />
-      <span><strong>{{ etat.a_confirmer }} paramètre(s) à confirmer</strong>
-        <template v-if="etat.critiques_a_confirmer"> dont {{ etat.critiques_a_confirmer }} critique(s) : la validation des bulletins sera bloquée tant qu'ils ne le sont pas.</template></span>
-    </router-link>
-
-    <section class="grille">
-      <article v-for="b in livre" :key="b.titre" class="card bloc">
-        <div class="icone"><component :is="b.icone" :size="20" /></div>
-        <h2>{{ b.titre }}</h2>
-        <p>{{ b.texte }}</p>
-        <span class="badge badge-ok">Livré au lot {{ b.lot ?? 0 }}</span>
+    <section v-if="t" class="indicateurs">
+      <article v-if="t.effectif_actif !== null" class="card kpi">
+        <div class="icone"><Users :size="20" /></div><span>Effectif en activité</span><strong>{{ fmt(t.effectif_actif) }}</strong>
       </article>
+      <router-link v-if="t.derniere_paie" :to="`/campagnes/${t.derniere_paie.campagne_id}`" class="card kpi lien">
+        <div class="icone"><Wallet :size="20" /></div><span>Dernière paie validée</span>
+        <strong>{{ fmt(t.derniere_paie.net) }} FCFA</strong><small>{{ t.derniere_paie.libelle }} · {{ t.derniere_paie.bulletins }} bulletin(s)</small>
+      </router-link>
+      <router-link v-if="t.campagne_en_cours" :to="`/campagnes/${t.campagne_en_cours.campagne_id}`" class="card kpi lien">
+        <div class="icone"><CalendarRange :size="20" /></div><span>Campagne en cours</span>
+        <strong>{{ t.campagne_en_cours.libelle }}</strong><small>{{ t.campagne_en_cours.statut === 'ouverte' ? 'À préparer et calculer' : 'Calculée — à valider' }}</small>
+      </router-link>
     </section>
+
+    <section v-if="t" class="attentes">
+      <template v-for="a in attentes" :key="a.cle">
+        <router-link v-if="t.a_traiter[a.cle]" :to="a.vers" class="alerte">
+          <component :is="a.icone" :size="18" /><span>{{ a.texte(t.a_traiter[a.cle]) }}</span><ArrowRight :size="16" />
+        </router-link>
+      </template>
+    </section>
+    <p v-if="t && !t.effectif_actif && !t.derniere_paie && !t.campagne_en_cours && !Object.values(t.a_traiter).some(Boolean)" class="vide">
+      Rien à signaler. Commencez par créer vos salariés, puis ouvrez une campagne de paie.
+    </p>
   </div>
 </template>
 
 <style scoped>
 .page { padding: var(--space-6) var(--space-8); display: flex; flex-direction: column; gap: var(--space-6); }
 h1 { margin: 0; font-size: var(--font-size-xl); }
-.sous-titre { margin: 4px 0 0; color: var(--color-text-muted); font-size: var(--font-size-sm); max-width: 640px; }
-.alerte { display: flex; align-items: center; gap: var(--space-3); padding: 12px 16px; border-radius: var(--radius-md); background: var(--color-orange-bg); color: var(--color-orange); font-size: var(--font-size-sm); text-decoration: none; max-width: 860px; }
-.grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-4); }
-.bloc { padding: var(--space-4) var(--space-6); display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
-.icone { width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--color-brand-light); color: var(--color-brand); display: flex; align-items: center; justify-content: center; }
-h2 { margin: 4px 0 0; font-size: var(--font-size-base); }
-p { margin: 0; font-size: var(--font-size-sm); color: var(--color-text-muted); line-height: 1.5; flex: 1; }
+.sous-titre { margin: 4px 0 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.indicateurs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-4); }
+.kpi { padding: var(--space-4) var(--space-6); display: flex; flex-direction: column; gap: 4px; text-decoration: none; color: inherit; }
+.kpi span { color: var(--color-text-muted); font-size: var(--font-size-sm); } .kpi strong { font-size: var(--font-size-xl); } .kpi small { color: var(--color-text-muted); }
+.lien:hover { border-color: var(--color-brand); }
+.icone { width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--color-brand-light); color: var(--color-brand); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+.attentes { display: flex; flex-direction: column; gap: var(--space-2); max-width: 860px; }
+.alerte { display: flex; align-items: center; gap: var(--space-3); padding: 12px 16px; border-radius: var(--radius-md); background: var(--color-orange-bg); color: var(--color-orange); font-size: var(--font-size-sm); text-decoration: none; }
+.alerte span { flex: 1; }
+.vide { color: var(--color-text-muted); }
 @media (max-width: 760px) { .page { padding: var(--space-4); } }
 </style>

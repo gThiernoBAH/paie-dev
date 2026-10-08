@@ -18,6 +18,7 @@ import EspaceView from '../salarie/EspaceView.vue'
 import MesBulletins from '../salarie/MesBulletins.vue'
 import MesConges from '../salarie/MesConges.vue'
 import MonProfil from '../salarie/MonProfil.vue'
+import RapportsView from '../paie/components/RapportsView.vue'
 import ParametrageView from '../direction/components/ParametrageView.vue'
 import AdminView from '../direction/components/AdminView.vue'
 import { lireUtilisateur, aLaPermission } from '../api/session'
@@ -42,6 +43,7 @@ const routes = [
       { path: 'prets', name: 'prets', component: PretsView, meta: { requiresAnyPermission: ['gerer_conges'] } },
       { path: 'virements', name: 'virements', component: VirementsView, meta: { requiresAnyPermission: ['gerer_virements'] } },
       { path: 'declarations', name: 'declarations', component: DeclarationsView, meta: { requiresAnyPermission: ['voir_declarations'] } },
+      { path: 'rapports', name: 'rapports', component: RapportsView, meta: { requiresAnyPermission: ['voir_rapports'] } },
       { path: 'parametrage', name: 'parametrage', component: ParametrageView, meta: { requiresAnyPermission: ['voir_parametres', 'gerer_parametres'] } },
       // Administration : comptes, droits, journal d'audit (au moins l'une des deux permissions).
       { path: 'administration', name: 'administration', component: AdminView, meta: { requiresAnyPermission: ['gerer_utilisateurs', 'voir_audit'] } },
