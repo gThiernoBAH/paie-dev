@@ -192,6 +192,7 @@ class SalarieChampsIn(BaseModel):
     nombre_enfants: Optional[int] = Field(default=None, ge=0, le=30)
     nombre_parts: Optional[float] = Field(default=None, ge=1, le=5)
     nombre_personnes_cmu: Optional[int] = Field(default=None, ge=0, le=30)
+    indemnite_transport: Optional[float] = Field(default=None, ge=0, le=10_000_000)
     telephone: Optional[str] = Field(default=None, max_length=30)
     email: Optional[str] = Field(default=None, max_length=150)
     adresse: Optional[str] = Field(default=None, max_length=200)
@@ -216,6 +217,7 @@ class SalarieCreationIn(SalarieChampsIn):
     matricule: Optional[str] = Field(default=None, max_length=6)  # vide = prochain matricule libre
     nom: str = Field(min_length=1, max_length=100)
     salaire_base: Optional[float] = Field(default=None, ge=0)     # exige « voir_donnees_sensibles »
+    sursalaire: Optional[float] = Field(default=None, ge=0)
 
 
 class SalarieListeOut(BaseModel):
@@ -243,6 +245,7 @@ class EvolutionSalaireOut(BaseModel):
     id: int
     date_effet: date
     montant: float
+    sursalaire: float = 0
     motif: Optional[str] = None
     cree_par: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
@@ -251,6 +254,7 @@ class EvolutionSalaireOut(BaseModel):
 class EvolutionSalaireIn(BaseModel):
     date_effet: date
     montant: float = Field(ge=0, le=1_000_000_000)
+    sursalaire: float = Field(default=0, ge=0, le=1_000_000_000)
     motif: Optional[str] = Field(default=None, max_length=200)
 
 

@@ -181,6 +181,7 @@ CREATE TABLE IF NOT EXISTS salaries (
     banque_id INTEGER REFERENCES referentiels(id),
     rib_chiffre TEXT,
     numero_cnps_chiffre TEXT,
+    indemnite_transport NUMERIC(14,2) CHECK (indemnite_transport IS NULL OR indemnite_transport >= 0),  -- NULL = valeur du paramètre transport_mensuel
     est_actif BOOLEAN NOT NULL DEFAULT TRUE,
     cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modifie_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -195,7 +196,8 @@ CREATE TABLE IF NOT EXISTS evolutions_salaire (
     id SERIAL PRIMARY KEY,
     salarie_id INTEGER NOT NULL REFERENCES salaries(id) ON DELETE CASCADE,
     date_effet DATE NOT NULL,
-    montant NUMERIC(14,2) NOT NULL CHECK (montant >= 0),
+    montant NUMERIC(14,2) NOT NULL CHECK (montant >= 0),   -- salaire catégoriel (base de l'ancienneté)
+    sursalaire NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (sursalaire >= 0),
     motif VARCHAR(200),
     cree_par VARCHAR(20),
     cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

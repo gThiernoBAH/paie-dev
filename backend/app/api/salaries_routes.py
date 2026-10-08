@@ -40,6 +40,7 @@ def _fiche(s: models.Salarie, sensible: bool) -> dict:
         "date_naissance": s.date_naissance, "lieu_naissance": s.lieu_naissance, "nationalite": s.nationalite,
         "situation_matrimoniale": s.situation_matrimoniale, "nombre_enfants": s.nombre_enfants,
         "nombre_parts": float(s.nombre_parts), "nombre_personnes_cmu": s.nombre_personnes_cmu,
+        "indemnite_transport": None if s.indemnite_transport is None else float(s.indemnite_transport),
         "telephone": s.telephone, "email": s.email, "adresse": s.adresse, "ville": s.ville,
         "date_embauche": s.date_embauche, "date_sortie": s.date_sortie, "motif_sortie": s.motif_sortie,
         "type_contrat": _ref(s.type_contrat), "service": _ref(s.service), "section": _ref(s.section),
@@ -51,7 +52,7 @@ def _fiche(s: models.Salarie, sensible: bool) -> dict:
     }
     if sensible:
         e = svc.salaire_en_vigueur(s)
-        sortie["salaire_actuel"] = None if e is None else {"montant": float(e.montant), "date_effet": e.date_effet}
+        sortie["salaire_actuel"] = None if e is None else {"montant": float(e.montant), "sursalaire": float(e.sursalaire), "date_effet": e.date_effet}
     return sortie
 
 
@@ -123,8 +124,8 @@ def creer(
     acteur: models.Utilisateur = Depends(require_permission("modifier_salaries")),
 ):
     sensible = a_la_permission(acteur, "voir_donnees_sensibles")
-    donnees = _nettoyer(corps.model_dump(exclude_unset=True, exclude={"matricule", "salaire_base", "rib", "numero_cnps"}))
-    if (corps.rib or corps.numero_cnps or corps.salaire_base is not None) and not sensible:
+    donnees = _nettoyer(corps.model_dump(exclude_unset=True, exclude={"matricule", "salaire_base", "sursalaire", "rib", "numero_cnps"}))
+    if (corps.rib or corps.numero_cnps or corps.salaire_base is not None or corps.sursalaire) and not sensible:
         raise HTTPException(status_code=403, detail="Le RIB, le n° CNPS et le salaire exigent le droit « données sensibles ».")
     _verifier_liens(db, donnees)
     try:
@@ -142,7 +143,7 @@ def creer(
         salarie.numero_cnps_chiffre = crypto.chiffrer(corps.numero_cnps.strip())
     if corps.salaire_base is not None:
         salarie.evolutions.append(models.EvolutionSalaire(
-            date_effet=salarie.date_embauche or date.today(), montant=corps.salaire_base,
+            date_effet=salarie.date_embauche or date.today(), montant=corps.salaire_base, sursalaire=corps.sursalaire or 0,
             motif="Salaire d'embauche", cree_par=acteur.identifiant))
     db.add(salarie)
     try:
@@ -231,7 +232,7 @@ def ajouter_salaire(
     if any(e.date_effet == corps.date_effet for e in s.evolutions):
         raise HTTPException(status_code=409, detail="Un salaire existe déjà à cette date : choisissez une autre date d'effet.")
     s.evolutions.append(models.EvolutionSalaire(
-        date_effet=corps.date_effet, montant=corps.montant, motif=corps.motif, cree_par=acteur.identifiant))
+        date_effet=corps.date_effet, montant=corps.montant, sursalaire=corps.sursalaire, motif=corps.motif, cree_par=acteur.identifiant))
     audit.enregistrer(db, "salaire_modifie", acteur=acteur, cible_type="salarie", cible_id=s.id,
                       detail={"matricule": s.matricule, "date_effet": corps.date_effet.isoformat()}, request=request)
     db.commit()
