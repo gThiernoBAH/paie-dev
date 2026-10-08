@@ -217,3 +217,93 @@ class Rubrique(Base):
     type = Column(String(2), nullable=False)
     montant_defaut = Column(Numeric(14, 2))
     est_actif = Column(Boolean, nullable=False, default=True)
+
+
+class Campagne(Base):
+    __tablename__ = "campagnes"
+
+    id = Column(Integer, primary_key=True)
+    libelle = Column(String(100), nullable=False)
+    type_campagne = Column(String(15), nullable=False, default="mensuelle")
+    nature_bulletin = Column(String(10), nullable=False, default="mensuel")
+    annee = Column(Integer, nullable=False)
+    mois = Column(Integer, nullable=False)
+    numero = Column(Integer, nullable=False, default=1)
+    debut = Column(Date, nullable=False)
+    fin = Column(Date, nullable=False)
+    date_paie = Column(Date)
+    statut = Column(String(10), nullable=False, default="ouverte")
+    cree_par = Column(String(20))
+    cree_le = Column(DateTime(timezone=True), server_default=func.now())
+    valide_par = Column(String(20))
+    valide_le = Column(DateTime(timezone=True))
+    cloture_le = Column(DateTime(timezone=True))
+
+
+class PresencePeriode(Base):
+    __tablename__ = "presences_periode"
+
+    campagne_id = Column(Integer, ForeignKey("campagnes.id", ondelete="CASCADE"), primary_key=True)
+    salarie_id = Column(Integer, ForeignKey("salaries.id"), primary_key=True)
+    jours_payes = Column(Numeric(5, 1), nullable=False, default=30)
+    jours_presence = Column(Numeric(5, 1), nullable=False, default=0)
+    heures_travaillees = Column(Numeric(7, 2), nullable=False, default=0)
+    hs1 = Column(Numeric(7, 2), nullable=False, default=0)
+    hs2 = Column(Numeric(7, 2), nullable=False, default=0)
+    hs3 = Column(Numeric(7, 2), nullable=False, default=0)
+    hs4 = Column(Numeric(7, 2), nullable=False, default=0)
+    heures_absence = Column(Numeric(7, 2), nullable=False, default=0)
+    jours_absence_ja = Column(Numeric(5, 1), nullable=False, default=0)
+    source = Column(String(10), nullable=False, default="manuel")
+    modifie_par = Column(String(20))
+    modifie_le = Column(DateTime(timezone=True), server_default=func.now())
+
+    salarie = relationship("Salarie", lazy="joined")
+
+
+class SaisieRubrique(Base):
+    __tablename__ = "saisies_rubriques"
+
+    id = Column(Integer, primary_key=True)
+    campagne_id = Column(Integer, ForeignKey("campagnes.id", ondelete="CASCADE"), nullable=False)
+    salarie_id = Column(Integer, ForeignKey("salaries.id"), nullable=False)
+    code = Column(String(6), ForeignKey("rubriques.code"), nullable=False)
+    libelle = Column(String(100), nullable=False)
+    type = Column(String(2), nullable=False)
+    montant = Column(Numeric(14, 2), nullable=False)
+    quantite = Column(Numeric(10, 2))
+    commentaire = Column(String(200))
+    origine = Column(String(15), nullable=False, default="manuelle")
+    reference_id = Column(Integer)
+    cree_par = Column(String(20))
+    cree_le = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Bulletin(Base):
+    __tablename__ = "bulletins"
+
+    id = Column(Integer, primary_key=True)
+    campagne_id = Column(Integer, ForeignKey("campagnes.id"), nullable=False)
+    salarie_id = Column(Integer, ForeignKey("salaries.id"), nullable=False)
+    statut = Column(String(10), nullable=False, default="brouillon")
+    identite = Column(JSONB, nullable=False)
+    entree = Column(JSONB, nullable=False)
+    parametres = Column(JSONB, nullable=False)
+    lignes = Column(JSONB, nullable=False)
+    total_imposable_brut = Column(Numeric(14, 2), nullable=False)
+    total_retenues_imposables = Column(Numeric(14, 2), nullable=False)
+    total_imposable = Column(Numeric(14, 2), nullable=False)
+    cnps = Column(Numeric(14, 2), nullable=False)
+    its = Column(Numeric(14, 2), nullable=False)
+    total_impots = Column(Numeric(14, 2), nullable=False)
+    gains_non_imposables = Column(Numeric(14, 2), nullable=False)
+    retenues_non_imposables = Column(Numeric(14, 2), nullable=False)
+    net_non_imposable = Column(Numeric(14, 2), nullable=False)
+    net_a_payer = Column(Numeric(14, 2), nullable=False)
+    charges_patronales = Column(JSONB, nullable=False)
+    anomalies = Column(JSONB, nullable=False, default=list)
+    calcule_le = Column(DateTime(timezone=True), server_default=func.now())
+    valide_par = Column(String(20))
+    valide_le = Column(DateTime(timezone=True))
+    envoye_le = Column(DateTime(timezone=True))
+    lu_le = Column(DateTime(timezone=True))

@@ -9,7 +9,7 @@ from ..core import models, schemas
 from ..core.database import get_db
 from ..services import audit, import_pointages
 from ..services import presences as svc_presences
-from .auth_routes import require_permission
+from .auth_routes import require_any_permission, require_permission
 
 router = APIRouter(tags=["Pointages"])
 
@@ -180,7 +180,7 @@ def supprimer_ferie(jour: date, request: Request, db: Session = Depends(get_db),
 # --- Rubriques variables ---
 @router.get("/rubriques")
 def lister_rubriques(inclure_inactives: bool = False, db: Session = Depends(get_db),
-                     _: models.Utilisateur = Depends(require_permission("voir_salaries"))):
+                     _: models.Utilisateur = Depends(require_any_permission("voir_salaries", "lancer_paie"))):
     q = db.query(models.Rubrique)
     if not inclure_inactives:
         q = q.filter(models.Rubrique.est_actif.is_(True))

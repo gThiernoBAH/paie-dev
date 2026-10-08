@@ -375,3 +375,17 @@ INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2027-08-15', 'Assomption'
 INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2027-11-01', 'Toussaint') ON CONFLICT (jour) DO NOTHING;
 INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2027-11-15', 'Journée nationale de la Paix') ON CONFLICT (jour) DO NOTHING;
 INSERT INTO jours_feries (jour, libelle) VALUES (DATE '2027-12-25', 'Noël') ON CONFLICT (jour) DO NOTHING;
+
+-- LOT 5 : campagnes et bulletins
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('cmu_applicable_journaliers', 'cmu', 'CMU – appliquer aux journaliers', 'Les bulletins de journaliers de référence ne retiennent pas la CMU.', 'booleen', NULL, NULL, NULL, NULL, FALSE, 530)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('cmu_applicable_journaliers', 'false', DATE '2000-01-01', 'a_confirmer', 'Bulletins réels 2026 (cas de référence)', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('validation_bloquee_si_a_confirmer', 'general', 'Bloquer la validation si un paramètre critique est à confirmer', 'Recommandé : évite de valider des bulletins avec des valeurs légales non vérifiées.', 'booleen', NULL, NULL, NULL, NULL, FALSE, 540)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('validation_bloquee_si_a_confirmer', 'true', DATE '2000-01-01', 'confirme', 'Décision de conception', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;

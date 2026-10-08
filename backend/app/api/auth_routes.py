@@ -130,3 +130,17 @@ def changer_mot_de_passe(
     # L'empreinte du jeton a changé : toutes les anciennes sessions sont révoquées, on en rend une neuve.
     jeton, expire = tokens.creer_jeton(current_user.id, current_user.mot_de_passe_hash)
     return schemas.SessionOut(access_token=jeton, expires_at=expire, user=utilisateur_vers_sortie(current_user))
+
+
+def require_any_permission(*cles: str):
+    """Dépendance FastAPI : exige AU MOINS UNE des permissions listées (un administrateur les a toutes)."""
+    for cle in cles:
+        if cle not in PERMISSION_REGISTRY:
+            raise ValueError(f"Permission inconnue : {cle}")
+
+    def _verifier(current_user: models.Utilisateur = Depends(get_current_user)) -> models.Utilisateur:
+        if not any(a_la_permission(current_user, c) for c in cles):
+            raise HTTPException(status_code=403, detail="Permission manquante : " + " ou ".join(cles))
+        return current_user
+
+    return _verifier

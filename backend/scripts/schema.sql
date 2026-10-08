@@ -252,4 +252,130 @@ CREATE TABLE IF NOT EXISTS rubriques (
     est_actif BOOLEAN NOT NULL DEFAULT TRUE
 );
 
+-- =============================================================
+-- 6. CAMPAGNES DE PAIE ET BULLETINS (lot 5)
+-- =============================================================
+-- Une campagne = une période payée pour un groupe de salariés : le mois pour les mensuels, une
+-- quinzaine (ou un autre découpage) pour les journaliers -- plusieurs campagnes par mois sont possibles
+-- (`numero` = NBUL du legacy). Cycle : ouverte -> calculee -> validee -> cloturee.
+CREATE TABLE IF NOT EXISTS campagnes (
+    id SERIAL PRIMARY KEY,
+    libelle VARCHAR(100) NOT NULL,
+    type_campagne VARCHAR(15) NOT NULL DEFAULT 'mensuelle'
+        CHECK (type_campagne IN ('mensuelle', 'journaliere', 'solde', 'exceptionnelle')),
+    nature_bulletin VARCHAR(10) NOT NULL DEFAULT 'mensuel' CHECK (nature_bulletin IN ('mensuel', 'journalier')),
+    annee INTEGER NOT NULL CHECK (annee BETWEEN 2000 AND 2100),
+    mois INTEGER NOT NULL CHECK (mois BETWEEN 1 AND 12),
+    numero INTEGER NOT NULL DEFAULT 1 CHECK (numero >= 1),
+    debut DATE NOT NULL,
+    fin DATE NOT NULL,
+    date_paie DATE,
+    statut VARCHAR(10) NOT NULL DEFAULT 'ouverte' CHECK (statut IN ('ouverte', 'calculee', 'validee', 'cloturee')),
+    cree_par VARCHAR(20),
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    valide_par VARCHAR(20),
+    valide_le TIMESTAMPTZ,
+    cloture_le TIMESTAMPTZ,
+    CHECK (fin >= debut),
+    UNIQUE (annee, mois, numero)
+);
+
+-- Les éléments de présence qui alimentent le calcul d'un salarié dans une campagne. La présence de la ligne
+-- vaut appartenance du salarié à la campagne.
+CREATE TABLE IF NOT EXISTS presences_periode (
+    campagne_id INTEGER NOT NULL REFERENCES campagnes(id) ON DELETE CASCADE,
+    salarie_id INTEGER NOT NULL REFERENCES salaries(id),
+    jours_payes NUMERIC(5,1) NOT NULL DEFAULT 30,
+    jours_presence NUMERIC(5,1) NOT NULL DEFAULT 0,
+    heures_travaillees NUMERIC(7,2) NOT NULL DEFAULT 0,
+    hs1 NUMERIC(7,2) NOT NULL DEFAULT 0,
+    hs2 NUMERIC(7,2) NOT NULL DEFAULT 0,
+    hs3 NUMERIC(7,2) NOT NULL DEFAULT 0,
+    hs4 NUMERIC(7,2) NOT NULL DEFAULT 0,
+    heures_absence NUMERIC(7,2) NOT NULL DEFAULT 0,
+    jours_absence_ja NUMERIC(5,1) NOT NULL DEFAULT 0,
+    source VARCHAR(10) NOT NULL DEFAULT 'manuel' CHECK (source IN ('pointage', 'manuel')),
+    modifie_par VARCHAR(20),
+    modifie_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (campagne_id, salarie_id)
+);
+
+-- Rubriques variables d'un salarié pour une campagne (prime, acompte, retenue...).
+-- `origine` : manuelle, pret (échéance de prêt), solde (solde de tout compte), conges.
+CREATE TABLE IF NOT EXISTS saisies_rubriques (
+    id SERIAL PRIMARY KEY,
+    campagne_id INTEGER NOT NULL REFERENCES campagnes(id) ON DELETE CASCADE,
+    salarie_id INTEGER NOT NULL REFERENCES salaries(id),
+    code VARCHAR(6) NOT NULL REFERENCES rubriques(code),
+    libelle VARCHAR(100) NOT NULL,
+    type VARCHAR(2) NOT NULL CHECK (type IN ('GI', 'GN', 'RI', 'RN')),
+    montant NUMERIC(14,2) NOT NULL CHECK (montant >= 0),
+    quantite NUMERIC(10,2),
+    commentaire VARCHAR(200),
+    origine VARCHAR(15) NOT NULL DEFAULT 'manuelle',
+    reference_id INTEGER,
+    cree_par VARCHAR(20),
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS ix_saisies_campagne ON saisies_rubriques (campagne_id, salarie_id);
+
+-- Un bulletin. Il garde de quoi être relu à l'identique des années plus tard : les entrées du calcul,
+-- les paramètres légaux utilisés (`parametres`), l'identité du salarié à cette date (`identite`) et les lignes.
+-- Une fois « valide », il ne change plus (trigger ci-dessous) ; seul un déverrouillage explicite et tracé
+-- de la campagne le permet.
+CREATE TABLE IF NOT EXISTS bulletins (
+    id SERIAL PRIMARY KEY,
+    campagne_id INTEGER NOT NULL REFERENCES campagnes(id),
+    salarie_id INTEGER NOT NULL REFERENCES salaries(id),
+    statut VARCHAR(10) NOT NULL DEFAULT 'brouillon' CHECK (statut IN ('brouillon', 'valide')),
+    identite JSONB NOT NULL,
+    entree JSONB NOT NULL,
+    parametres JSONB NOT NULL,
+    lignes JSONB NOT NULL,
+    total_imposable_brut NUMERIC(14,2) NOT NULL,
+    total_retenues_imposables NUMERIC(14,2) NOT NULL,
+    total_imposable NUMERIC(14,2) NOT NULL,
+    cnps NUMERIC(14,2) NOT NULL,
+    its NUMERIC(14,2) NOT NULL,
+    total_impots NUMERIC(14,2) NOT NULL,
+    gains_non_imposables NUMERIC(14,2) NOT NULL,
+    retenues_non_imposables NUMERIC(14,2) NOT NULL,
+    net_non_imposable NUMERIC(14,2) NOT NULL,
+    net_a_payer NUMERIC(14,2) NOT NULL,
+    charges_patronales JSONB NOT NULL,
+    anomalies JSONB NOT NULL DEFAULT '[]'::jsonb,
+    calcule_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    valide_par VARCHAR(20),
+    valide_le TIMESTAMPTZ,
+    envoye_le TIMESTAMPTZ,
+    lu_le TIMESTAMPTZ,
+    UNIQUE (campagne_id, salarie_id)
+);
+CREATE INDEX IF NOT EXISTS ix_bulletins_salarie ON bulletins (salarie_id);
+
+CREATE OR REPLACE FUNCTION bulletins_valides_immuables() RETURNS trigger AS $$
+BEGIN
+    IF OLD.statut = 'valide' AND COALESCE(current_setting('paie.deverrouillage', true), '') <> 'on' THEN
+        IF TG_OP = 'DELETE' THEN
+            RAISE EXCEPTION 'Un bulletin validé ne peut pas être supprimé';
+        END IF;
+        -- seuls les suivis d'envoi et de lecture peuvent évoluer
+        IF NEW.statut <> OLD.statut OR NEW.identite <> OLD.identite OR NEW.entree <> OLD.entree
+           OR NEW.parametres <> OLD.parametres OR NEW.lignes <> OLD.lignes OR NEW.net_a_payer <> OLD.net_a_payer
+           OR NEW.total_imposable <> OLD.total_imposable OR NEW.cnps <> OLD.cnps OR NEW.its <> OLD.its
+           OR NEW.net_non_imposable <> OLD.net_non_imposable OR NEW.campagne_id <> OLD.campagne_id
+           OR NEW.salarie_id <> OLD.salarie_id OR NEW.charges_patronales <> OLD.charges_patronales THEN
+            RAISE EXCEPTION 'Un bulletin validé ne peut pas être modifié';
+        END IF;
+    END IF;
+    IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_bulletins_immuables ON bulletins;
+CREATE TRIGGER trg_bulletins_immuables
+    BEFORE UPDATE OR DELETE ON bulletins
+    FOR EACH ROW EXECUTE FUNCTION bulletins_valides_immuables();
+
 DO $$ BEGIN RAISE NOTICE 'Schéma SIVOP Paie à jour'; END; $$;
