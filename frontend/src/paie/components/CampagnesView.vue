@@ -7,6 +7,10 @@ import { Plus } from 'lucide-vue-next'
 
 const router = useRouter()
 const peutCreer = aLaPermission(lireUtilisateur(), 'lancer_paie')
+const peutSolder = aLaPermission(lireUtilisateur(), 'gerer_conges')
+const solde = ref({ matricule: '', date_sortie: '', motif: 'demission', jours_conges: '', preavis: '' })
+const motifs = ref([])
+const apercu = ref(null)
 const campagnes = ref([])
 const erreur = ref('')
 const aujourdhui = new Date()
@@ -26,7 +30,35 @@ async function creer() {
     router.push(`/campagnes/${data.id}`)
   } catch (e) { erreur.value = messageErreur(e) }
 }
-onMounted(charger)
+async function salarieDuSolde() {
+  const { data } = await apiClient.get('/salaries', { params: { recherche: solde.value.matricule.trim(), statut: 'tous', taille: 5 } })
+  const s = data.elements.find((x) => x.matricule === solde.value.matricule.trim().padStart(6, '0'))
+  if (!s) throw new Error('Matricule introuvable.')
+  return s
+}
+async function voirApercu() {
+  erreur.value = ''; apercu.value = null
+  try {
+    const s = await salarieDuSolde()
+    apercu.value = (await apiClient.get('/soldes/apercu', { params: { salarie_id: s.id, date_sortie: solde.value.date_sortie, motif: solde.value.motif } })).data
+  } catch (e) { erreur.value = e.response ? messageErreur(e) : e.message }
+}
+async function creerSolde() {
+  erreur.value = ''
+  if (!window.confirm('Créer le solde de tout compte ? Le salarié sera marqué sorti à cette date.')) return
+  try {
+    const s = await salarieDuSolde()
+    const corps = { salarie_id: s.id, date_sortie: solde.value.date_sortie, motif: solde.value.motif }
+    if (solde.value.jours_conges !== '') corps.jours_conges = solde.value.jours_conges
+    if (solde.value.preavis !== '') corps.preavis = solde.value.preavis
+    const { data } = await apiClient.post('/soldes', corps)
+    router.push(`/campagnes/${data.campagne_id}`)
+  } catch (e) { erreur.value = e.response ? messageErreur(e) : e.message }
+}
+onMounted(async () => {
+  charger()
+  if (peutSolder) { try { motifs.value = (await apiClient.get('/soldes/motifs')).data } catch { /* facultatif */ } }
+})
 </script>
 
 <template>
@@ -52,6 +84,26 @@ onMounted(charger)
       </template>
       <button class="vbtn vbtn-primary" type="submit"><Plus :size="16" />Créer</button>
     </form>
+
+    <details v-if="peutSolder" class="card encart">
+      <summary>Solde de tout compte (salarié sortant)</summary>
+      <form class="ligne saisie" @submit.prevent="creerSolde">
+        <input v-model="solde.matricule" class="input" placeholder="Matricule" required inputmode="numeric" aria-label="Matricule" />
+        <input v-model="solde.date_sortie" type="date" class="input" required aria-label="Date de sortie" />
+        <select v-model="solde.motif" class="input" aria-label="Motif"><option v-for="m in motifs" :key="m.cle" :value="m.cle">{{ m.libelle }}</option></select>
+        <input v-model="solde.jours_conges" type="number" step="0.5" min="0" class="input" placeholder="Jours de congés (auto)" aria-label="Jours de congés restants" />
+        <input v-model="solde.preavis" type="number" min="0" class="input" placeholder="Indemnité de préavis" aria-label="Indemnité de préavis" />
+        <button class="vbtn vbtn-secondary" type="button" @click="voirApercu">Aperçu</button>
+        <button class="vbtn vbtn-primary" type="submit">Créer le solde</button>
+      </form>
+      <div v-if="apercu" class="apercu">
+        <span>Salaire de référence : <strong>{{ fmt(apercu.reference_mensuelle) }}</strong></span>
+        <span>Congés : <strong>{{ apercu.jours_conges }} j = {{ fmt(apercu.indemnite_conges) }}</strong></span>
+        <span>Ancienneté : <strong>{{ apercu.anciennete_mois }} mois</strong></span>
+        <span>Licenciement : <strong>{{ fmt(apercu.indemnite_licenciement) }}</strong> (dont non imposable {{ fmt(apercu.licenciement_non_imposable) }})</span>
+      </div>
+      <p class="aide">Crée une campagne dédiée avec les indemnités calculées ; le reste dû des prêts y est retenu. Vous pouvez ensuite ajouter des rubriques, calculer et valider comme pour toute campagne.</p>
+    </details>
 
     <div class="card cadre">
       <table>
@@ -84,6 +136,9 @@ td { padding: 10px 14px; border-bottom: 1px solid var(--color-border); }
 .num { text-align: right; font-variant-numeric: tabular-nums; } .nowrap { white-space: nowrap; }
 .cliquable { cursor: pointer; } .cliquable:hover { background: #F8FAFC; }
 .vide { text-align: center; color: var(--color-text-muted); padding: var(--space-6); }
+.encart { padding: var(--space-3) var(--space-4); } summary { cursor: pointer; font-weight: 600; }
+.apercu { display: flex; gap: var(--space-6); flex-wrap: wrap; font-size: var(--font-size-sm); padding: var(--space-2) 0; }
+.aide { font-size: var(--font-size-xs); color: var(--color-text-muted); margin: 0; }
 .st-validee, .st-cloturee { background: var(--color-vert-bg); color: var(--color-vert); }
 @media (max-width: 760px) { .page { padding: var(--space-4); } }
 </style>

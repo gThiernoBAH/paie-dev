@@ -13,6 +13,7 @@ from ..moteur import calcul
 from ..moteur.modeles import EntreeBulletin, ParametresPaie, Rubrique
 from ..moteur.parametres_paie import charger
 from . import parametres as param
+from . import prets as svc_prets
 from . import presences as svc_presences
 from . import salaries as svc_salaries
 
@@ -144,6 +145,8 @@ def calculer_un(db: Session, campagne: models.Campagne, presence: models.Presenc
     if campagne.statut in ("validee", "cloturee"):
         raise ErreurPaie("La campagne est validée : ses bulletins ne peuvent plus être recalculés.")
     salarie = presence.salarie
+    if params is None:
+        svc_prets.appliquer(db, campagne, salarie.id)
     params = params or charger(db, campagne.fin)
     entree = construire_entree(db, campagne, salarie, presence)
     r = calcul.calculer_bulletin(entree, params)
@@ -169,6 +172,7 @@ def calculer_un(db: Session, campagne: models.Campagne, presence: models.Presenc
 def calculer_campagne(db: Session, campagne: models.Campagne) -> dict:
     if campagne.statut in ("validee", "cloturee"):
         raise ErreurPaie("La campagne est validée : ses bulletins ne peuvent plus être recalculés.")
+    svc_prets.appliquer(db, campagne)
     params = charger(db, campagne.fin)
     resume = {"calcules": 0, "erreurs": [], "anomalies": 0}
     for presence in db.query(models.PresencePeriode).filter_by(campagne_id=campagne.id).all():
@@ -220,6 +224,7 @@ def valider(db: Session, campagne: models.Campagne, acteur: models.Utilisateur) 
         b.statut, b.valide_par, b.valide_le = "valide", acteur.identifiant, maintenant
         n += 1
     campagne.statut, campagne.valide_par, campagne.valide_le = "validee", acteur.identifiant, maintenant
+    svc_prets.marquer_preleve(db, campagne)
     db.flush()
     return n
 
@@ -235,4 +240,5 @@ def rouvrir(db: Session, campagne: models.Campagne) -> None:
     for b in db.query(models.Bulletin).filter_by(campagne_id=campagne.id).all():
         b.statut, b.valide_par, b.valide_le = "brouillon", None, None
     campagne.statut, campagne.valide_par, campagne.valide_le = "calculee", None, None
+    svc_prets.remettre_a_prevoir(db, campagne)
     db.flush()

@@ -10,6 +10,8 @@ import ReferentielsView from '../direction/components/ReferentielsView.vue'
 import PointagesView from '../paie/components/PointagesView.vue'
 import CampagnesView from '../paie/components/CampagnesView.vue'
 import CampagneDetail from '../paie/components/CampagneDetail.vue'
+import CongesView from '../paie/components/CongesView.vue'
+import PretsView from '../paie/components/PretsView.vue'
 import ParametrageView from '../direction/components/ParametrageView.vue'
 import AdminView from '../direction/components/AdminView.vue'
 import { lireUtilisateur, aLaPermission } from '../api/session'
@@ -30,6 +32,8 @@ const routes = [
       { path: 'pointages', name: 'pointages', component: PointagesView, meta: { requiresAnyPermission: ['gerer_pointages'] } },
       { path: 'campagnes', name: 'campagnes', component: CampagnesView, meta: { requiresAnyPermission: ['lancer_paie', 'valider_bulletins', 'voir_rapports'] } },
       { path: 'campagnes/:id', name: 'campagne', component: CampagneDetail, meta: { requiresAnyPermission: ['lancer_paie', 'valider_bulletins', 'voir_rapports'] } },
+      { path: 'conges', name: 'conges', component: CongesView, meta: { requiresAnyPermission: ['gerer_conges'] } },
+      { path: 'prets', name: 'prets', component: PretsView, meta: { requiresAnyPermission: ['gerer_conges'] } },
       { path: 'parametrage', name: 'parametrage', component: ParametrageView, meta: { requiresAnyPermission: ['voir_parametres', 'gerer_parametres'] } },
       // Administration : comptes, droits, journal d'audit (au moins l'une des deux permissions).
       { path: 'administration', name: 'administration', component: AdminView, meta: { requiresAnyPermission: ['gerer_utilisateurs', 'voir_audit'] } },

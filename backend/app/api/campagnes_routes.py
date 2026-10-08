@@ -15,6 +15,7 @@ from ..core.database import get_db
 from ..exports import bulletin_pdf
 from ..services import audit
 from ..services import bulletins as svc
+from ..services import salaries as svc_salaries
 from .auth_routes import require_any_permission, require_permission
 
 router = APIRouter(tags=["Campagnes de paie"])
@@ -51,6 +52,14 @@ class SaisieIn(BaseModel):
     montant: Decimal = Field(ge=0, le=Decimal("999999999"))
     quantite: Optional[Decimal] = Field(default=None, ge=0)
     libelle: Optional[str] = Field(default=None, max_length=100)
+    commentaire: Optional[str] = Field(default=None, max_length=200)
+
+
+class SaisieMasseIn(BaseModel):
+    code: str = Field(max_length=6)
+    mode: str = Field(pattern="^(fixe|pourcentage_salaire)$")
+    valeur: Decimal = Field(gt=0, le=Decimal("999999999"))
+    service_id: Optional[int] = None
     commentaire: Optional[str] = Field(default=None, max_length=200)
 
 
@@ -293,6 +302,38 @@ def ajouter_saisie(campagne_id: int, corps: SaisieIn, request: Request, db: Sess
                       detail={"matricule": p.salarie.matricule, "code": r.code, "montant": str(corps.montant)}, request=request)
     db.commit()
     return _saisie_sortie(s, p.salarie.matricule)
+
+
+@router.post("/campagnes/{campagne_id}/saisies/en-masse")
+def saisie_en_masse(campagne_id: int, corps: SaisieMasseIn, request: Request, db: Session = Depends(get_db),
+                    acteur: models.Utilisateur = Depends(require_permission("lancer_paie"))):
+    """Même rubrique pour tous les salariés de la campagne (ou d'un service) : gratification, prime de fin d'année...
+    Mode « pourcentage_salaire » : % du salaire catégoriel + sursalaire en vigueur à la fin de la période."""
+    c = _camp(db, campagne_id)
+    _modifiable(c)
+    r = db.get(models.Rubrique, corps.code.upper())
+    if r is None or not r.est_actif:
+        raise HTTPException(status_code=422, detail="Rubrique inconnue ou inactive.")
+    n, ignores = 0, []
+    for p in db.query(models.PresencePeriode).filter_by(campagne_id=c.id).all():
+        s = p.salarie
+        if corps.service_id and s.service_id != corps.service_id:
+            continue
+        if corps.mode == "fixe":
+            montant = corps.valeur
+        else:
+            e = svc_salaries.salaire_en_vigueur(s, c.fin)
+            if e is None:
+                ignores.append(s.matricule)
+                continue
+            montant = ((e.montant + (e.sursalaire or 0)) * corps.valeur / 100).quantize(Decimal("0.01"))
+        db.add(models.SaisieRubrique(campagne_id=c.id, salarie_id=s.id, code=r.code, libelle=r.libelle, type=r.type,
+                                     montant=montant, commentaire=corps.commentaire, origine="manuelle", cree_par=acteur.identifiant))
+        n += 1
+    audit.enregistrer(db, "saisie_en_masse", acteur=acteur, cible_type="campagne", cible_id=c.id,
+                      detail={"code": r.code, "mode": corps.mode, "valeur": str(corps.valeur), "salaries": n}, request=request)
+    db.commit()
+    return {"ajoutees": n, "ignores_sans_salaire": ignores}
 
 
 @router.delete("/campagnes/{campagne_id}/saisies/{saisie_id}", status_code=204)

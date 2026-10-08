@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Banknote, LayoutDashboard, Users, Clock, CalendarRange, FileText, Palmtree, Landmark,
-  FileBadge, BarChart3, ListChecks, SlidersHorizontal, ShieldCheck, LogOut, KeyRound,
+  FileBadge, BarChart3, Wallet, ListChecks, SlidersHorizontal, ShieldCheck, LogOut, KeyRound,
 } from 'lucide-vue-next'
 import { lireUtilisateur, fermerSession, aLaPermission } from '@/api/session'
 
@@ -20,7 +20,8 @@ const entrees = computed(() => {
     { cle: 'referentiels', libelle: 'Référentiels', icone: ListChecks, vers: '/referentiels', masque: !aLaPermission(u, 'voir_salaries') },
     { cle: 'pointages', libelle: 'Pointages', icone: Clock, vers: '/pointages', masque: !aLaPermission(u, 'gerer_pointages') },
     { cle: 'campagnes', libelle: 'Campagnes de paie', icone: CalendarRange, vers: '/campagnes', masque: !(aLaPermission(u, 'lancer_paie') || aLaPermission(u, 'valider_bulletins') || aLaPermission(u, 'voir_rapports')) },
-    { cle: 'conges', libelle: 'Congés', icone: Palmtree, lot: 6 },
+    { cle: 'conges', libelle: 'Congés', icone: Palmtree, vers: '/conges', masque: !aLaPermission(u, 'gerer_conges') },
+    { cle: 'prets', libelle: 'Prêts et avances', icone: Wallet, vers: '/prets', masque: !aLaPermission(u, 'gerer_conges') },
     { cle: 'virements', libelle: 'Virements', icone: Landmark, lot: 7 },
     { cle: 'declarations', libelle: 'Déclarations', icone: FileBadge, lot: 7 },
     { cle: 'rapports', libelle: 'Rapports', icone: BarChart3, lot: 10 },

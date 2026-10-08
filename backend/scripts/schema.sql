@@ -378,4 +378,53 @@ CREATE TRIGGER trg_bulletins_immuables
     BEFORE UPDATE OR DELETE ON bulletins
     FOR EACH ROW EXECUTE FUNCTION bulletins_valides_immuables();
 
+-- =============================================================
+-- 7. Congés, prêts et avances
+-- =============================================================
+ALTER TABLE salaries ADD COLUMN IF NOT EXISTS solde_conges_initial NUMERIC(6,2) NOT NULL DEFAULT 0;
+ALTER TABLE salaries ADD COLUMN IF NOT EXISTS solde_conges_date DATE;   -- date à laquelle le solde initial a été arrêté (reprise)
+
+CREATE TABLE IF NOT EXISTS conges (
+    id SERIAL PRIMARY KEY,
+    salarie_id INTEGER NOT NULL REFERENCES salaries(id),
+    type_conge VARCHAR(15) NOT NULL DEFAULT 'annuel'
+        CHECK (type_conge IN ('annuel', 'maladie', 'maternite', 'exceptionnel', 'sans_solde')),
+    debut DATE NOT NULL,
+    fin DATE NOT NULL,
+    jours_ouvrables NUMERIC(5,1) NOT NULL CHECK (jours_ouvrables >= 0),
+    statut VARCHAR(10) NOT NULL DEFAULT 'demande' CHECK (statut IN ('demande', 'approuve', 'refuse', 'annule')),
+    motif VARCHAR(200),
+    decide_par VARCHAR(20),
+    decide_le TIMESTAMPTZ,
+    cree_par VARCHAR(20),
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (fin >= debut)
+);
+CREATE INDEX IF NOT EXISTS ix_conges_salarie ON conges (salarie_id, debut);
+
+CREATE TABLE IF NOT EXISTS prets (
+    id SERIAL PRIMARY KEY,
+    salarie_id INTEGER NOT NULL REFERENCES salaries(id),
+    type_pret VARCHAR(10) NOT NULL DEFAULT 'pret' CHECK (type_pret IN ('pret', 'avance')),
+    libelle VARCHAR(100) NOT NULL,
+    montant NUMERIC(14,2) NOT NULL CHECK (montant > 0),
+    nombre_echeances INTEGER NOT NULL CHECK (nombre_echeances BETWEEN 1 AND 120),
+    statut VARCHAR(10) NOT NULL DEFAULT 'actif' CHECK (statut IN ('actif', 'solde', 'annule')),
+    cree_par VARCHAR(20),
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS ix_prets_salarie ON prets (salarie_id);
+
+CREATE TABLE IF NOT EXISTS echeances_prets (
+    id SERIAL PRIMARY KEY,
+    pret_id INTEGER NOT NULL REFERENCES prets(id) ON DELETE CASCADE,
+    annee INTEGER NOT NULL,
+    mois INTEGER NOT NULL CHECK (mois BETWEEN 1 AND 12),
+    montant NUMERIC(14,2) NOT NULL CHECK (montant > 0),
+    statut VARCHAR(10) NOT NULL DEFAULT 'prevue' CHECK (statut IN ('prevue', 'prelevee', 'annulee')),
+    campagne_id INTEGER REFERENCES campagnes(id) ON DELETE SET NULL,
+    UNIQUE (pret_id, annee, mois)
+);
+CREATE INDEX IF NOT EXISTS ix_echeances_statut ON echeances_prets (statut, annee, mois);
+
 DO $$ BEGIN RAISE NOTICE 'Schéma SIVOP Paie à jour'; END; $$;

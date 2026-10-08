@@ -23,6 +23,7 @@ const rubriques = ref([])
 const erreur = ref('')
 const message = ref('')
 const enCours = ref(false)
+const masse = ref({ code: '', mode: 'fixe', valeur: '', commentaire: '' })
 const nouvelleSaisie = ref({ matricule: '', code: '', montant: '', commentaire: '' })
 
 const LIBELLES = { ouverte: 'Ouverte', calculee: 'Calculée', validee: 'Validée', cloturee: 'Clôturée' }
@@ -86,6 +87,15 @@ async function ajouterSaisie() {
     nouvelleSaisie.value = { matricule: '', code: nouvelleSaisie.value.code, montant: '', commentaire: '' }
     await recharger()
   } catch (e) { erreur.value = e.response ? messageErreur(e) : e.message }
+}
+async function saisieEnMasse() {
+  erreur.value = ''; message.value = ''
+  if (!window.confirm('Ajouter cette rubrique à tous les salariés de la campagne ?')) return
+  try {
+    const { data } = await apiClient.post(`/campagnes/${id}/saisies/en-masse`, { ...masse.value, commentaire: masse.value.commentaire || null })
+    message.value = `${data.ajoutees} saisie(s) ajoutée(s)${data.ignores_sans_salaire.length ? ` — sans salaire en vigueur : ${data.ignores_sans_salaire.join(', ')}` : ''}.`
+    await recharger()
+  } catch (e) { erreur.value = messageErreur(e) }
 }
 async function supprimerSaisie(s) {
   try { await apiClient.delete(`/campagnes/${id}/saisies/${s.id}`); await recharger() } catch (e) { erreur.value = messageErreur(e) }
@@ -178,6 +188,17 @@ onMounted(async () => {
         <input v-model="nouvelleSaisie.montant" type="number" step="0.01" min="0" class="input" placeholder="Montant" required aria-label="Montant" />
         <input v-model="nouvelleSaisie.commentaire" class="input" placeholder="Commentaire" aria-label="Commentaire" />
         <button class="vbtn vbtn-primary" type="submit"><Plus :size="16" />Ajouter</button>
+      </form>
+      <form v-if="!figee && peutPreparer" class="ligne card saisie" @submit.prevent="saisieEnMasse">
+        <strong>Pour tous</strong>
+        <select v-model="masse.code" class="input" required aria-label="Rubrique (tous)">
+          <option value="" disabled>Rubrique…</option>
+          <option v-for="r in rubriques" :key="r.code" :value="r.code">{{ r.code }} — {{ r.libelle }} ({{ r.type }})</option>
+        </select>
+        <select v-model="masse.mode" class="input" aria-label="Mode"><option value="fixe">Montant fixe</option><option value="pourcentage_salaire">% du salaire</option></select>
+        <input v-model="masse.valeur" type="number" step="0.01" min="0" class="input" :placeholder="masse.mode === 'fixe' ? 'Montant' : '% (ex. 10)'" required aria-label="Valeur" />
+        <input v-model="masse.commentaire" class="input" placeholder="Commentaire" aria-label="Commentaire (tous)" />
+        <button class="vbtn vbtn-secondary" type="submit">Appliquer à tous</button>
       </form>
       <div class="card cadre">
         <table>

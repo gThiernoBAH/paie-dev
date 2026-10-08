@@ -142,6 +142,8 @@ class Salarie(Base):
     rib_chiffre = Column(Text)
     numero_cnps_chiffre = Column(Text)
     indemnite_transport = Column(Numeric(14, 2))
+    solde_conges_initial = Column(Numeric(6, 2), nullable=False, default=0)
+    solde_conges_date = Column(Date)
     est_actif = Column(Boolean, nullable=False, default=True)
     cree_le = Column(DateTime(timezone=True), server_default=func.now())
     modifie_le = Column(DateTime(timezone=True), server_default=func.now())
@@ -307,3 +309,53 @@ class Bulletin(Base):
     valide_le = Column(DateTime(timezone=True))
     envoye_le = Column(DateTime(timezone=True))
     lu_le = Column(DateTime(timezone=True))
+
+
+class Conge(Base):
+    __tablename__ = "conges"
+
+    id = Column(Integer, primary_key=True)
+    salarie_id = Column(Integer, ForeignKey("salaries.id"), nullable=False)
+    type_conge = Column(String(15), nullable=False, default="annuel")
+    debut = Column(Date, nullable=False)
+    fin = Column(Date, nullable=False)
+    jours_ouvrables = Column(Numeric(5, 1), nullable=False)
+    statut = Column(String(10), nullable=False, default="demande")
+    motif = Column(String(200))
+    decide_par = Column(String(20))
+    decide_le = Column(DateTime(timezone=True))
+    cree_par = Column(String(20))
+    cree_le = Column(DateTime(timezone=True), server_default=func.now())
+
+    salarie = relationship("Salarie", lazy="joined")
+
+
+class Pret(Base):
+    __tablename__ = "prets"
+
+    id = Column(Integer, primary_key=True)
+    salarie_id = Column(Integer, ForeignKey("salaries.id"), nullable=False)
+    type_pret = Column(String(10), nullable=False, default="pret")
+    libelle = Column(String(100), nullable=False)
+    montant = Column(Numeric(14, 2), nullable=False)
+    nombre_echeances = Column(Integer, nullable=False)
+    statut = Column(String(10), nullable=False, default="actif")
+    cree_par = Column(String(20))
+    cree_le = Column(DateTime(timezone=True), server_default=func.now())
+
+    salarie = relationship("Salarie", lazy="joined")
+    echeances = relationship("EcheancePret", order_by="EcheancePret.annee, EcheancePret.mois", cascade="all, delete-orphan")
+
+
+class EcheancePret(Base):
+    __tablename__ = "echeances_prets"
+
+    id = Column(Integer, primary_key=True)
+    pret_id = Column(Integer, ForeignKey("prets.id", ondelete="CASCADE"), nullable=False)
+    annee = Column(Integer, nullable=False)
+    mois = Column(Integer, nullable=False)
+    montant = Column(Numeric(14, 2), nullable=False)
+    statut = Column(String(10), nullable=False, default="prevue")
+    campagne_id = Column(Integer, ForeignKey("campagnes.id", ondelete="SET NULL"))
+
+    pret = relationship("Pret", viewonly=True)

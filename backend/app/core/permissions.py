@@ -30,6 +30,7 @@ PERMISSION_REGISTRY = {
     "gerer_pointages": "Importer et corriger les pointages",
     "lancer_paie": "Lancer le calcul d'une campagne de paie",
     "valider_bulletins": "Valider les bulletins",
+    "gerer_conges": "Gérer les congés, prêts et soldes de tout compte",
     "gerer_virements": "Préparer et lancer les virements",
     "voir_declarations": "Produire les déclarations (CNPS, ITS, DISA)",
     "voir_rapports": "Consulter les rapports et tableaux de bord",
@@ -39,7 +40,7 @@ PERMISSIONS_PAR_DEFAUT = {
     "admin": list(PERMISSION_REGISTRY),
     "paie": [
         "voir_parametres", "gerer_parametres", "voir_salaries", "modifier_salaries", "gerer_pointages",
-        "lancer_paie", "valider_bulletins", "gerer_virements", "voir_declarations", "voir_rapports",
+        "lancer_paie", "valider_bulletins", "gerer_conges", "gerer_virements", "voir_declarations", "voir_rapports",
     ],
     "direction": ["voir_parametres", "voir_salaries", "voir_rapports", "voir_declarations", "voir_audit"],
     "salarie": [],

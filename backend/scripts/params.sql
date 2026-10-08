@@ -389,3 +389,18 @@ INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite
 INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
   VALUES ('validation_bloquee_si_a_confirmer', 'true', DATE '2000-01-01', 'confirme', 'Décision de conception', 'système')
   ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+
+-- LOT 6 : congés
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('conges_jours_base_mensuelle', 'conges', 'Congés – jours de référence du mois', 'Diviseur pour valoriser un jour de congé : salaire mensuel ÷ ce nombre (26 jours ouvrables).', 'decimal', 'jours', 1, 31, NULL, FALSE, 550)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('conges_jours_base_mensuelle', '26', DATE '2000-01-01', 'a_confirmer', 'Pratique courante (jours ouvrables) – à confirmer', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+
+-- LOT 6 : rubriques du solde de tout compte et de la gratification
+INSERT INTO rubriques (code, libelle, type) VALUES ('ICP', 'Indemnité compensatrice de congés payés', 'GI') ON CONFLICT (code) DO NOTHING;
+INSERT INTO rubriques (code, libelle, type) VALUES ('IPV', 'Indemnité de préavis', 'GI') ON CONFLICT (code) DO NOTHING;
+INSERT INTO rubriques (code, libelle, type) VALUES ('LCI', 'Indemnité de licenciement (part imposable)', 'GI') ON CONFLICT (code) DO NOTHING;
+INSERT INTO rubriques (code, libelle, type) VALUES ('LCN', 'Indemnité de licenciement (part non imposable)', 'GN') ON CONFLICT (code) DO NOTHING;
+INSERT INTO rubriques (code, libelle, type) VALUES ('GRT', 'Gratification', 'GI') ON CONFLICT (code) DO NOTHING;

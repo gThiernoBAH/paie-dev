@@ -7,6 +7,7 @@ from sqlalchemy import text
 from app.api.admin_routes import router as admin_router
 from app.api.auth_routes import router as auth_router
 from app.api.campagnes_routes import router as campagnes_router
+from app.api.conges_routes import router as conges_router
 from app.api.parametres_routes import router as parametres_router
 from app.api.pointages_routes import router as pointages_router
 from app.api.referentiels_routes import router as referentiels_router
@@ -59,3 +60,4 @@ app.include_router(referentiels_router)
 app.include_router(salaries_router)
 app.include_router(pointages_router)
 app.include_router(campagnes_router)
+app.include_router(conges_router)

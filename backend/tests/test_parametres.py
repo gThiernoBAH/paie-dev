@@ -102,7 +102,7 @@ def test_confirmer_une_valeur_existante(client, admin):
 
 def test_etat_et_filtres(client, admin):
     e = client.get("/parametres/etat", headers=admin).json()
-    assert e["total"] == 54 and e["a_confirmer"] > 0 and e["critiques_a_confirmer"] > 0
+    assert e["total"] == 55 and e["a_confirmer"] > 0 and e["critiques_a_confirmer"] > 0
     assert "fdfp_taux_formation_continue" in e["cles_critiques"]
     assert "smig_mensuel" not in e["cles_critiques"]
     lst = client.get("/parametres", headers=admin, params={"statut": "a_confirmer"}).json()
