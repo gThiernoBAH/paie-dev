@@ -14,6 +14,10 @@ import CongesView from '../paie/components/CongesView.vue'
 import PretsView from '../paie/components/PretsView.vue'
 import VirementsView from '../paie/components/VirementsView.vue'
 import DeclarationsView from '../paie/components/DeclarationsView.vue'
+import EspaceView from '../salarie/EspaceView.vue'
+import MesBulletins from '../salarie/MesBulletins.vue'
+import MesConges from '../salarie/MesConges.vue'
+import MonProfil from '../salarie/MonProfil.vue'
 import ParametrageView from '../direction/components/ParametrageView.vue'
 import AdminView from '../direction/components/AdminView.vue'
 import { lireUtilisateur, aLaPermission } from '../api/session'
@@ -43,6 +47,17 @@ const routes = [
       { path: 'administration', name: 'administration', component: AdminView, meta: { requiresAnyPermission: ['gerer_utilisateurs', 'voir_audit'] } },
     ],
   },
+  {
+    path: '/espace',
+    component: EspaceView,
+    meta: { requiresAuth: true, espaceSalarie: true },
+    children: [
+      { path: '', redirect: '/espace/bulletins' },
+      { path: 'bulletins', name: 'mes-bulletins', component: MesBulletins },
+      { path: 'conges', name: 'mes-conges', component: MesConges },
+      { path: 'profil', name: 'mon-profil', component: MonProfil },
+    ],
+  },
   { path: '/:pathMatch(.*)*', redirect: () => (lireUtilisateur() ? '/' : '/login') },
 ]
 
@@ -59,7 +74,10 @@ router.beforeEach((to) => {
 
   // Premier accès ou mot de passe réinitialisé : rien d'autre n'est accessible avant le changement.
   if (user.doit_changer_mot_de_passe && to.name !== 'changer-mot-de-passe') return '/changer-mot-de-passe'
-  if (!user.doit_changer_mot_de_passe && to.name === 'changer-mot-de-passe') return '/'
+
+  // Un salarié n'a accès qu'à son espace ; les autres comptes n'y ont pas accès.
+  if (user.role === 'salarie' && !to.path.startsWith('/espace') && to.name !== 'changer-mot-de-passe') return '/espace'
+  if (user.role !== 'salarie' && to.path.startsWith('/espace')) return '/'
 
   const requises = to.meta.requiresAnyPermission
   if (requises && !requises.some((cle) => aLaPermission(user, cle))) return '/'

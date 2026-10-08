@@ -42,6 +42,7 @@ async function valider() {
 }
 
 function annuler() {
+  if (!obligatoire) { router.push('/'); return }   // changement volontaire : on revient simplement
   fermerSession()
   router.push('/login')
 }
