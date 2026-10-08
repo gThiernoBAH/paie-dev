@@ -404,3 +404,85 @@ INSERT INTO rubriques (code, libelle, type) VALUES ('IPV', 'Indemnité de préav
 INSERT INTO rubriques (code, libelle, type) VALUES ('LCI', 'Indemnité de licenciement (part imposable)', 'GI') ON CONFLICT (code) DO NOTHING;
 INSERT INTO rubriques (code, libelle, type) VALUES ('LCN', 'Indemnité de licenciement (part non imposable)', 'GN') ON CONFLICT (code) DO NOTHING;
 INSERT INTO rubriques (code, libelle, type) VALUES ('GRT', 'Gratification', 'GI') ON CONFLICT (code) DO NOTHING;
+
+-- LOT 7 : comptabilité
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('compta_code_journal', 'comptabilite', 'Code du journal de paie', 'Journal des opérations diverses.', 'texte', NULL, NULL, NULL, NULL, FALSE, 560)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('compta_code_journal', 'OD', DATE '2000-01-01', 'a_confirmer', 'Plan SYSCOHADA usuel – à valider par le comptable', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('compta_compte_remunerations', 'comptabilite', 'Compte : rémunérations (gains imposables)', 'Débit.', 'texte', NULL, NULL, NULL, NULL, FALSE, 570)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('compta_compte_remunerations', '661000', DATE '2000-01-01', 'a_confirmer', 'Plan SYSCOHADA usuel – à valider par le comptable', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('compta_compte_indemnites', 'comptabilite', 'Compte : indemnités et avantages non imposables', 'Débit.', 'texte', NULL, NULL, NULL, NULL, FALSE, 580)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('compta_compte_indemnites', '663000', DATE '2000-01-01', 'a_confirmer', 'Plan SYSCOHADA usuel – à valider par le comptable', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('compta_compte_charges_cnps', 'comptabilite', 'Compte : charges sociales patronales CNPS', 'Débit.', 'texte', NULL, NULL, NULL, NULL, FALSE, 590)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('compta_compte_charges_cnps', '664100', DATE '2000-01-01', 'a_confirmer', 'Plan SYSCOHADA usuel – à valider par le comptable', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('compta_compte_charges_fdfp', 'comptabilite', 'Compte : taxes FDFP (apprentissage, formation)', 'Débit.', 'texte', NULL, NULL, NULL, NULL, FALSE, 600)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('compta_compte_charges_fdfp', '664200', DATE '2000-01-01', 'a_confirmer', 'Plan SYSCOHADA usuel – à valider par le comptable', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('compta_compte_its', 'comptabilite', 'Compte : impôt sur traitements et salaires retenu', 'Crédit.', 'texte', NULL, NULL, NULL, NULL, FALSE, 610)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('compta_compte_its', '447100', DATE '2000-01-01', 'a_confirmer', 'Plan SYSCOHADA usuel – à valider par le comptable', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('compta_compte_cnps', 'comptabilite', 'Compte : organismes sociaux CNPS', 'Crédit (parts salariale et patronale).', 'texte', NULL, NULL, NULL, NULL, FALSE, 620)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('compta_compte_cnps', '431100', DATE '2000-01-01', 'a_confirmer', 'Plan SYSCOHADA usuel – à valider par le comptable', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('compta_compte_fdfp', 'comptabilite', 'Compte : FDFP à payer', 'Crédit.', 'texte', NULL, NULL, NULL, NULL, FALSE, 630)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('compta_compte_fdfp', '447200', DATE '2000-01-01', 'a_confirmer', 'Plan SYSCOHADA usuel – à valider par le comptable', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('compta_compte_cmu', 'comptabilite', 'Compte : CMU à reverser', 'Crédit.', 'texte', NULL, NULL, NULL, NULL, FALSE, 640)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('compta_compte_cmu', '431200', DATE '2000-01-01', 'a_confirmer', 'Plan SYSCOHADA usuel – à valider par le comptable', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('compta_compte_avances', 'comptabilite', 'Compte : avances, acomptes et prêts au personnel', 'Crédit (remboursements retenus).', 'texte', NULL, NULL, NULL, NULL, FALSE, 650)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('compta_compte_avances', '425000', DATE '2000-01-01', 'a_confirmer', 'Plan SYSCOHADA usuel – à valider par le comptable', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('compta_compte_retenues_diverses', 'comptabilite', 'Compte : autres retenues au personnel', 'Crédit.', 'texte', NULL, NULL, NULL, NULL, FALSE, 660)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('compta_compte_retenues_diverses', '422900', DATE '2000-01-01', 'a_confirmer', 'Plan SYSCOHADA usuel – à valider par le comptable', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('compta_compte_personnel', 'comptabilite', 'Compte : rémunérations dues au personnel', 'Crédit (net à payer).', 'texte', NULL, NULL, NULL, NULL, FALSE, 670)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('compta_compte_personnel', '422000', DATE '2000-01-01', 'a_confirmer', 'Plan SYSCOHADA usuel – à valider par le comptable', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+
+-- LOT 7 : comptabilité (suite)
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('compta_compte_arrondis', 'comptabilite', 'Compte : écarts d''arrondi de paie', 'Reçoit la différence (quelques francs) entre les lignes du bulletin et les totaux arrondis.', 'texte', NULL, NULL, NULL, NULL, FALSE, 680)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('compta_compte_arrondis', '658000', DATE '2000-01-01', 'a_confirmer', 'Plan SYSCOHADA usuel – à valider par le comptable', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;

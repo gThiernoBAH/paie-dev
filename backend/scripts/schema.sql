@@ -427,4 +427,36 @@ CREATE TABLE IF NOT EXISTS echeances_prets (
 );
 CREATE INDEX IF NOT EXISTS ix_echeances_statut ON echeances_prets (statut, annee, mois);
 
+-- =============================================================
+-- 8. Virements bancaires
+-- =============================================================
+-- Un lot = les virements d'une campagne validée. Le RIB (chiffré) est copié sur chaque ordre au moment
+-- de la préparation : le fichier de virement reflète exactement ce qui a été contrôlé.
+CREATE TABLE IF NOT EXISTS lots_virement (
+    id SERIAL PRIMARY KEY,
+    campagne_id INTEGER NOT NULL REFERENCES campagnes(id),
+    libelle VARCHAR(120) NOT NULL,
+    date_valeur DATE,
+    statut VARCHAR(10) NOT NULL DEFAULT 'prepare' CHECK (statut IN ('prepare', 'lance', 'annule')),
+    nombre_ordres INTEGER NOT NULL DEFAULT 0,
+    total NUMERIC(16,2) NOT NULL DEFAULT 0,
+    exclus JSONB NOT NULL DEFAULT '[]'::jsonb,       -- salariés non virés et pourquoi (sans RIB, espèces...)
+    cree_par VARCHAR(20),
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lance_par VARCHAR(20),
+    lance_le TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS ix_lots_virement_campagne ON lots_virement (campagne_id);
+
+CREATE TABLE IF NOT EXISTS ordres_virement (
+    id SERIAL PRIMARY KEY,
+    lot_id INTEGER NOT NULL REFERENCES lots_virement(id) ON DELETE CASCADE,
+    salarie_id INTEGER NOT NULL REFERENCES salaries(id),
+    bulletin_id INTEGER REFERENCES bulletins(id),
+    montant NUMERIC(14,2) NOT NULL CHECK (montant > 0),
+    banque VARCHAR(100),
+    rib_chiffre TEXT NOT NULL,
+    UNIQUE (lot_id, salarie_id)
+);
+
 DO $$ BEGIN RAISE NOTICE 'Schéma SIVOP Paie à jour'; END; $$;

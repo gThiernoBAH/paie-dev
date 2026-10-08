@@ -359,3 +359,36 @@ class EcheancePret(Base):
     campagne_id = Column(Integer, ForeignKey("campagnes.id", ondelete="SET NULL"))
 
     pret = relationship("Pret", viewonly=True)
+
+
+class LotVirement(Base):
+    __tablename__ = "lots_virement"
+
+    id = Column(Integer, primary_key=True)
+    campagne_id = Column(Integer, ForeignKey("campagnes.id"), nullable=False)
+    libelle = Column(String(120), nullable=False)
+    date_valeur = Column(Date)
+    statut = Column(String(10), nullable=False, default="prepare")
+    nombre_ordres = Column(Integer, nullable=False, default=0)
+    total = Column(Numeric(16, 2), nullable=False, default=0)
+    exclus = Column(JSONB, nullable=False, default=list)
+    cree_par = Column(String(20))
+    cree_le = Column(DateTime(timezone=True), server_default=func.now())
+    lance_par = Column(String(20))
+    lance_le = Column(DateTime(timezone=True))
+
+    ordres = relationship("OrdreVirement", cascade="all, delete-orphan", order_by="OrdreVirement.id")
+
+
+class OrdreVirement(Base):
+    __tablename__ = "ordres_virement"
+
+    id = Column(Integer, primary_key=True)
+    lot_id = Column(Integer, ForeignKey("lots_virement.id", ondelete="CASCADE"), nullable=False)
+    salarie_id = Column(Integer, ForeignKey("salaries.id"), nullable=False)
+    bulletin_id = Column(Integer, ForeignKey("bulletins.id"))
+    montant = Column(Numeric(14, 2), nullable=False)
+    banque = Column(String(100))
+    rib_chiffre = Column(Text, nullable=False)
+
+    salarie = relationship("Salarie", lazy="joined")

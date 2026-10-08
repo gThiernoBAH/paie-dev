@@ -3,7 +3,8 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import apiClient, { messageErreur } from '@/api/client'
 import { aLaPermission, lireUtilisateur } from '@/api/session'
-import { Calculator, CheckCircle2, Download, Printer, Unlock, Users, Clock, Trash2, Plus, Lock } from 'lucide-vue-next'
+import { telecharger } from '@/api/telechargement'
+import { Calculator, CheckCircle2, Download, Printer, Unlock, Users, Clock, Trash2, Plus, Lock, Landmark, FileSpreadsheet } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -12,6 +13,8 @@ const u = lireUtilisateur()
 const peutPreparer = aLaPermission(u, 'lancer_paie')
 const peutValider = aLaPermission(u, 'valider_bulletins')
 const estAdmin = u?.role === 'admin'
+const peutVirer = aLaPermission(u, 'gerer_virements')
+const peutDeclarer = aLaPermission(u, 'voir_declarations')
 
 const campagne = ref(null)
 const onglet = ref('presences')
@@ -55,6 +58,16 @@ const calculer = () => action('calculer', {}, (d) => `${d.calcules} bulletin(s) 
 function valider() {
   if (!window.confirm('Valider la campagne ? Les bulletins ne pourront plus être modifiés.')) return
   action('valider', {}, (d) => `${d.bulletins_valides} bulletin(s) validé(s).`)
+}
+async function preparerVirements() {
+  erreur.value = ''; message.value = ''
+  try {
+    const { data } = await apiClient.post(`/campagnes/${id}/virements`, {})
+    router.push('/virements?lot=' + data.id)
+  } catch (e) { erreur.value = messageErreur(e) }
+}
+async function journal(format) {
+  try { await telecharger(`/campagnes/${id}/journal-comptable`, { format }, `journal.${format}`) } catch (e) { erreur.value = 'Journal indisponible.' }
 }
 function cloturer() {
   if (!window.confirm('Clôturer la campagne ? Cette action est définitive.')) return
@@ -132,6 +145,8 @@ onMounted(async () => {
         <button v-if="peutValider && campagne.statut === 'calculee'" class="vbtn vbtn-primary" :disabled="enCours" @click="valider"><CheckCircle2 :size="16" />Valider</button>
         <button v-if="peutValider && campagne.statut === 'validee'" class="vbtn vbtn-secondary" @click="cloturer"><Lock :size="16" />Clôturer</button>
         <button v-if="estAdmin && campagne.statut === 'validee'" class="vbtn vbtn-secondary" @click="rouvrir"><Unlock :size="16" />Rouvrir</button>
+        <button v-if="peutVirer && campagne.statut === 'validee'" class="vbtn vbtn-primary" @click="preparerVirements"><Landmark :size="16" />Préparer les virements</button>
+        <button v-if="peutDeclarer && figee" class="vbtn vbtn-secondary" @click="journal('xlsx')"><FileSpreadsheet :size="16" />Journal comptable</button>
         <button v-if="bulletins.length" class="vbtn vbtn-secondary" @click="ouvrirPdf(`/campagnes/${id}/bulletins.pdf`)"><Printer :size="16" />Tous les bulletins (PDF)</button>
       </div>
     </header>

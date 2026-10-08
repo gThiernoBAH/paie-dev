@@ -22,8 +22,8 @@ const entrees = computed(() => {
     { cle: 'campagnes', libelle: 'Campagnes de paie', icone: CalendarRange, vers: '/campagnes', masque: !(aLaPermission(u, 'lancer_paie') || aLaPermission(u, 'valider_bulletins') || aLaPermission(u, 'voir_rapports')) },
     { cle: 'conges', libelle: 'Congés', icone: Palmtree, vers: '/conges', masque: !aLaPermission(u, 'gerer_conges') },
     { cle: 'prets', libelle: 'Prêts et avances', icone: Wallet, vers: '/prets', masque: !aLaPermission(u, 'gerer_conges') },
-    { cle: 'virements', libelle: 'Virements', icone: Landmark, lot: 7 },
-    { cle: 'declarations', libelle: 'Déclarations', icone: FileBadge, lot: 7 },
+    { cle: 'virements', libelle: 'Virements', icone: Landmark, vers: '/virements', masque: !aLaPermission(u, 'gerer_virements') },
+    { cle: 'declarations', libelle: 'Déclarations', icone: FileBadge, vers: '/declarations', masque: !aLaPermission(u, 'voir_declarations') },
     { cle: 'rapports', libelle: 'Rapports', icone: BarChart3, lot: 10 },
     {
       cle: 'parametrage', libelle: 'Paramétrage', icone: SlidersHorizontal, vers: '/parametrage',
