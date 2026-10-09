@@ -48,7 +48,8 @@ def base_propre():
     with connexion.cursor() as curseur:
         curseur.execute("TRUNCATE journal_audit, permissions_utilisateurs, utilisateurs RESTART IDENTITY CASCADE")
         # Les paramètres reviennent à leur état initial (params.sql) avant chaque test.
-        curseur.execute("TRUNCATE notifications, ordres_virement, lots_virement, echeances_prets, prets, conges, bulletins, saisies_rubriques, presences_periode, campagnes, valeurs_parametres, parametres, pointages, imports_pointages, jours_feries, rubriques, evolutions_salaire, salaries, referentiels RESTART IDENTITY CASCADE")
+        curseur.execute("TRUNCATE exercices, grille_categories, grille_tranches, augmentations_lots, mutations_salaries, enfants_salaries, rubriques_fixes, notifications, ordres_virement, lots_virement, echeances_prets, prets, conges, bulletins, saisies_rubriques, presences_periode, campagnes, valeurs_parametres, parametres, pointages, imports_pointages, jours_feries, rubriques, evolutions_salaire, salaries, referentiels RESTART IDENTITY CASCADE")
+        curseur.execute("INSERT INTO grille_tranches (numero, libelle, heures, coefficient) VALUES (1,'Tranche 1',173.33,1),(2,'Tranche 2',193.2632,1),(3,'Tranche 3',198.2461,1),(4,'Tranche 4',213.1960,1),(5,'Tranche 5',99.6646,1)")
         curseur.execute(PARAMS.read_text(encoding="utf-8"))
     connexion.close()
     yield

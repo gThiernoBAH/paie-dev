@@ -34,6 +34,8 @@ PERMISSION_REGISTRY = {
     "gerer_virements": "Préparer et lancer les virements",
     "voir_declarations": "Produire les déclarations (CNPS, ITS, DISA)",
     "voir_rapports": "Consulter les rapports et tableaux de bord",
+    # --- Étape 5 ---
+    "gerer_discipline": "Gérer le dossier disciplinaire et les notes de service",
 }
 
 PERMISSIONS_PAR_DEFAUT = {
@@ -41,6 +43,7 @@ PERMISSIONS_PAR_DEFAUT = {
     "paie": [
         "voir_parametres", "gerer_parametres", "voir_salaries", "modifier_salaries", "gerer_pointages",
         "lancer_paie", "valider_bulletins", "gerer_conges", "gerer_virements", "voir_declarations", "voir_rapports",
+        "gerer_discipline",
     ],
     "direction": ["voir_parametres", "voir_salaries", "voir_rapports", "voir_declarations", "voir_audit"],
     "salarie": [],

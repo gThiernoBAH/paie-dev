@@ -479,4 +479,167 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 CREATE INDEX IF NOT EXISTS ix_notifications_campagne ON notifications (campagne_id, statut);
 
+-- =============================================================
+-- 10. Dossier disciplinaire et notes de service
+-- =============================================================
+-- Une mesure = un avertissement, un blâme ou une mise à pied. La mise à pied (sans solde) retire de la paie
+-- les jours ouvrés couverts (ligne « Absences (jours) »). Une mesure annulée reste visible, jamais supprimée.
+CREATE TABLE IF NOT EXISTS mesures_disciplinaires (
+    id SERIAL PRIMARY KEY,
+    reference VARCHAR(20),
+    salarie_id INTEGER NOT NULL REFERENCES salaries(id),
+    type_mesure VARCHAR(15) NOT NULL CHECK (type_mesure IN ('avertissement', 'blame', 'mise_a_pied')),
+    date_faits DATE,
+    date_decision DATE NOT NULL,
+    motif TEXT NOT NULL,
+    debut_mise_a_pied DATE,
+    fin_mise_a_pied DATE,
+    statut VARCHAR(10) NOT NULL DEFAULT 'active' CHECK (statut IN ('active', 'annulee')),
+    cree_par VARCHAR(20),
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    annule_par VARCHAR(20),
+    annule_le TIMESTAMPTZ,
+    motif_annulation VARCHAR(200),
+    CHECK (type_mesure <> 'mise_a_pied' OR (debut_mise_a_pied IS NOT NULL AND fin_mise_a_pied IS NOT NULL AND fin_mise_a_pied >= debut_mise_a_pied))
+);
+CREATE INDEX IF NOT EXISTS ix_mesures_salarie ON mesures_disciplinaires (salarie_id, date_decision);
+
+CREATE TABLE IF NOT EXISTS notes_service (
+    id SERIAL PRIMARY KEY,
+    reference VARCHAR(20),
+    objet VARCHAR(150) NOT NULL,
+    contenu TEXT NOT NULL,
+    date_effet DATE NOT NULL,
+    service_id INTEGER REFERENCES referentiels(id),
+    statut VARCHAR(10) NOT NULL DEFAULT 'active' CHECK (statut IN ('active', 'annulee')),
+    cree_par VARCHAR(20),
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================================
+-- 11. Évolutions d'octobre 2026
+-- =============================================================
+-- Prêts : règlement manuel d'une échéance (hors paie) et clôture anticipée du prêt (départ, démission, décès…).
+ALTER TABLE prets DROP CONSTRAINT IF EXISTS prets_statut_check;
+ALTER TABLE prets ADD CONSTRAINT prets_statut_check CHECK (statut IN ('actif', 'solde', 'annule', 'cloture'));
+ALTER TABLE prets ADD COLUMN IF NOT EXISTS date_cloture DATE;
+ALTER TABLE prets ADD COLUMN IF NOT EXISTS motif_cloture VARCHAR(20);
+ALTER TABLE prets ADD COLUMN IF NOT EXISTS issue_cloture VARCHAR(15);
+ALTER TABLE prets ADD COLUMN IF NOT EXISTS commentaire_cloture VARCHAR(300);
+ALTER TABLE prets ADD COLUMN IF NOT EXISTS cloture_par VARCHAR(20);
+ALTER TABLE echeances_prets DROP CONSTRAINT IF EXISTS echeances_prets_statut_check;
+ALTER TABLE echeances_prets ADD CONSTRAINT echeances_prets_statut_check
+    CHECK (statut IN ('prevue', 'prelevee', 'annulee', 'reglee', 'abandonnee'));
+ALTER TABLE echeances_prets ADD COLUMN IF NOT EXISTS date_reglement DATE;
+ALTER TABLE echeances_prets ADD COLUMN IF NOT EXISTS mode_reglement VARCHAR(15);
+ALTER TABLE echeances_prets ADD COLUMN IF NOT EXISTS regle_par VARCHAR(20);
+ALTER TABLE echeances_prets ADD COLUMN IF NOT EXISTS commentaire VARCHAR(200);
+
+-- Historique des mutations (service, section, emploi, catégorie, site, type de contrat, mode de rémunération).
+-- Les changements de salaire restent dans evolutions_salaire ; l'historique du dossier fusionne les deux.
+CREATE TABLE IF NOT EXISTS mutations_salaries (
+    id SERIAL PRIMARY KEY,
+    salarie_id INTEGER NOT NULL REFERENCES salaries(id) ON DELETE CASCADE,
+    date_effet DATE NOT NULL,
+    nature VARCHAR(20) NOT NULL
+        CHECK (nature IN ('service', 'section', 'emploi', 'categorie', 'site', 'type_contrat', 'type_remuneration')),
+    ancienne_valeur VARCHAR(150),
+    nouvelle_valeur VARCHAR(150),
+    motif VARCHAR(200),
+    cree_par VARCHAR(20),
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS ix_mutations_salarie ON mutations_salaries (salarie_id, date_effet);
+
+-- Personnes à charge (enfants, conjoint) : le détail derrière le simple compteur de la fiche.
+CREATE TABLE IF NOT EXISTS enfants_salaries (
+    id SERIAL PRIMARY KEY,
+    salarie_id INTEGER NOT NULL REFERENCES salaries(id) ON DELETE CASCADE,
+    lien VARCHAR(10) NOT NULL DEFAULT 'enfant' CHECK (lien IN ('enfant', 'conjoint')),
+    nom VARCHAR(100) NOT NULL,
+    prenoms VARCHAR(150),
+    sexe CHAR(1) CHECK (sexe IN ('M', 'F')),
+    date_naissance DATE,
+    a_charge BOOLEAN NOT NULL DEFAULT TRUE,
+    scolarise BOOLEAN NOT NULL DEFAULT FALSE,
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS ix_enfants_salarie ON enfants_salaries (salarie_id);
+
+-- Rubriques fixes : primes ou retenues récurrentes du salarié, ajoutées à chaque bulletin mensuel.
+CREATE TABLE IF NOT EXISTS rubriques_fixes (
+    id SERIAL PRIMARY KEY,
+    salarie_id INTEGER NOT NULL REFERENCES salaries(id) ON DELETE CASCADE,
+    code VARCHAR(6) NOT NULL REFERENCES rubriques(code),
+    montant NUMERIC(14,2) NOT NULL CHECK (montant > 0),
+    date_debut DATE NOT NULL,
+    date_fin DATE,
+    commentaire VARCHAR(200),
+    est_actif BOOLEAN NOT NULL DEFAULT TRUE,
+    cree_par VARCHAR(20),
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (date_fin IS NULL OR date_fin >= date_debut)
+);
+CREATE INDEX IF NOT EXISTS ix_rubriques_fixes_salarie ON rubriques_fixes (salarie_id, est_actif);
+
+-- Augmentations en masse : un lot = une opération (filtres, mode, date d'effet), annulable tant qu'aucune paie n'a été validée.
+CREATE TABLE IF NOT EXISTS augmentations_lots (
+    id SERIAL PRIMARY KEY,
+    libelle VARCHAR(150) NOT NULL,
+    date_effet DATE NOT NULL,
+    mode VARCHAR(12) NOT NULL CHECK (mode IN ('pourcentage', 'montant')),
+    valeur NUMERIC(14,2) NOT NULL,
+    cible VARCHAR(12) NOT NULL DEFAULT 'salaire' CHECK (cible IN ('salaire', 'sursalaire', 'les_deux')),
+    filtres JSONB,
+    nb_salaries INTEGER NOT NULL DEFAULT 0,
+    total_mensuel NUMERIC(16,2) NOT NULL DEFAULT 0,
+    statut VARCHAR(10) NOT NULL DEFAULT 'applique' CHECK (statut IN ('applique', 'annule')),
+    cree_par VARCHAR(20),
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    annule_par VARCHAR(20),
+    annule_le TIMESTAMPTZ
+);
+ALTER TABLE evolutions_salaire ADD COLUMN IF NOT EXISTS lot_id INTEGER REFERENCES augmentations_lots(id) ON DELETE SET NULL;
+
+-- 12. Lot 12 : exercices (clôture annuelle) et grille salariale ------------------------------------------------------
+CREATE TABLE IF NOT EXISTS exercices (
+    annee INTEGER PRIMARY KEY CHECK (annee BETWEEN 2000 AND 2100),
+    statut VARCHAR(10) NOT NULL DEFAULT 'cloture' CHECK (statut IN ('cloture', 'rouvert')),
+    cloture_le TIMESTAMPTZ,
+    cloture_par VARCHAR(20),
+    instantane JSONB,                       -- cumuls annuels par salarié figés à la clôture
+    rouvert_le TIMESTAMPTZ,
+    rouvert_par VARCHAR(20),
+    motif_reouverture VARCHAR(300)
+);
+
+-- Tranches horaires (régimes d'heures mensuelles) : salaire de la tranche = base horaire × heures × coefficient.
+CREATE TABLE IF NOT EXISTS grille_tranches (
+    numero SMALLINT PRIMARY KEY CHECK (numero BETWEEN 1 AND 5),
+    libelle VARCHAR(60) NOT NULL,
+    heures NUMERIC(10,4) NOT NULL CHECK (heures >= 0),
+    coefficient NUMERIC(8,4) NOT NULL DEFAULT 1 CHECK (coefficient > 0),
+    modifie_par VARCHAR(20),
+    modifie_le TIMESTAMPTZ
+);
+INSERT INTO grille_tranches (numero, libelle, heures, coefficient) VALUES
+    (1, 'Tranche 1', 173.33, 1), (2, 'Tranche 2', 193.2632, 1), (3, 'Tranche 3', 198.2461, 1),
+    (4, 'Tranche 4', 213.1960, 1), (5, 'Tranche 5', 99.6646, 1)
+ON CONFLICT (numero) DO NOTHING;
+
+-- Base horaire par catégorie, datée.
+CREATE TABLE IF NOT EXISTS grille_categories (
+    id SERIAL PRIMARY KEY,
+    categorie_id INTEGER NOT NULL REFERENCES referentiels(id),
+    date_effet DATE NOT NULL,
+    base_horaire NUMERIC(12,4) NOT NULL CHECK (base_horaire > 0),
+    cree_par VARCHAR(20),
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (categorie_id, date_effet)
+);
+
+ALTER TABLE salaries ADD COLUMN IF NOT EXISTS tranche SMALLINT;
+ALTER TABLE salaries DROP CONSTRAINT IF EXISTS salaries_tranche_check;
+ALTER TABLE salaries ADD CONSTRAINT salaries_tranche_check CHECK (tranche IS NULL OR tranche BETWEEN 1 AND 5);
+
 DO $$ BEGIN RAISE NOTICE 'Schéma SIVOP Paie à jour'; END; $$;

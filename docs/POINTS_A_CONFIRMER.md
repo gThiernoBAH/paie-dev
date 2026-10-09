@@ -84,3 +84,15 @@ L'application ne bloque jamais sur une valeur inconnue : elle prend une valeur i
 | Objet du message de bulletin | Votre bulletin de paie – {periode} | Valeur initiale – à renseigner |
 | Texte du message de bulletin | Bonjour {prenom},\n\nVeuillez trouver ci-joint votre bulleti | Valeur initiale – à renseigner |
 | Destinataires de l'alerte virement | - | Valeur initiale – à renseigner |
+
+## Octobre 2026
+- **Mode de paiement des congés** (`conges_mode_paiement`) : `maintien_salaire` (par défaut, à confirmer) ou `indemnite_conges` (rubriques CGR/ICP, majoration `conges_majoration_indemnite`). À valider avec le cabinet / la convention collective.
+- **Tranches d'âge** : corrigées par rapport au legacy (≤25, 26-35, 36-45, 46+, « Non renseigné »).
+- **« Salaire réel / hors salaire »** : volontairement non repris. Un paiement hors bulletin n'est pas déclaré à la CNPS ni à l'ITS (risque de conformité). Les avantages légitimes se déclarent en rubriques (fixes ou variables) ; le coût complet employeur est disponible dans les statistiques.
+- **Non réalisés, à confirmer** : grille salariale par catégorie ; mise en page du bulletin paramétrable ; la « clôture annuelle » se limite aux cumuls annuels consultables (rapport) — pas de verrouillage d'année.
+
+## Lot 12
+- **Tranches horaires** : heures déduites des captures du legacy, à confirmer (probables régimes d'horaires hebdomadaires ; la tranche 5 ressemble à un mi-temps). Reprise de la tranche de chaque salarié à faire depuis l'ancien logiciel.
+- **Base horaire par catégorie** : à importer depuis l'ancien logiciel (écran Grille salariale → Importer).
+- **Bulletin** : éléments à afficher ou masquer à valider avec le service de la paie (réglages dans Paramétrage → Bulletin de paie).
+- **« Salaire réel / hors salaire »** : non repris (le legacy le calculait comme `salaire réel − (catégoriel + sursalaire)`, hors bulletin). Équivalents légitimes à décider : contrôle « salaire du contrat » / « bulletin », suivi des avantages en nature et remboursements de frais avec plafonds.

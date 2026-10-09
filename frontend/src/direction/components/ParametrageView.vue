@@ -1,4 +1,6 @@
 <script setup>
+import DataTable from '@/components/DataTable.vue'
+import { useEcran } from '@/composables/useEcran'
 import { ref, computed, onMounted } from 'vue'
 import apiClient, { messageErreur } from '@/api/client'
 import { lireUtilisateur, aLaPermission } from '@/api/session'
@@ -6,12 +8,13 @@ import { X, AlertTriangle, CheckCircle2, Search } from 'lucide-vue-next'
 import EditeurBareme from './parametrage/EditeurBareme.vue'
 
 const utilisateur = lireUtilisateur()
-const peutModifier = aLaPermission(utilisateur, 'gerer_parametres')
+const { mobile: surTelephone } = useEcran()
+const peutModifier = computed(() => aLaPermission(utilisateur, 'gerer_parametres') && !surTelephone.value)
 
 const CATEGORIES = {
   entreprise: 'Entreprise', general: 'Général', cnps: 'CNPS', fdfp: 'FDFP', its: 'ITS', cmu: 'CMU',
   heures_sup: 'Heures supplémentaires', anciennete: 'Ancienneté', indemnites: 'Indemnités', conges: 'Congés',
-  journaliers: 'Journaliers', licenciement: 'Licenciement', pointages: 'Pointages', comptabilite: 'Comptabilité', email: 'E-mail',
+  journaliers: 'Journaliers', licenciement: 'Licenciement', pointages: 'Pointages', bulletin: 'Bulletin de paie', grille: 'Grille salariale', comptabilite: 'Comptabilité', email: 'E-mail',
 }
 const parametres = ref([])
 const etat = ref(null)
@@ -108,6 +111,13 @@ async function testerEmail() {
     else erreur.value = data.erreur || 'Le message de test n\'est pas parti.'
   } catch (e) { erreur.value = messageErreur(e) }
 }
+const colonnes = [
+  { cle: 'libelle', libelle: 'Paramètre', tri: true, texte: (p) => `${p.libelle} ${p.cle}` , valeur: (p) => p.libelle },
+  { cle: 'valeur', libelle: 'Valeur en vigueur', tri: true, align: 'droite', texte: (p) => formater(p), valeur: (p) => formater(p) },
+  { cle: 'depuis', libelle: 'Depuis le', tri: true, texte: (p) => (p.valeur_courante ? dateFr(p.valeur_courante.date_effet) : '—'), valeur: (p) => p.valeur_courante?.date_effet || '' },
+  { cle: 'statut', libelle: 'Statut', tri: true, texte: (p) => (p.valeur_courante?.statut === 'confirme' ? 'Confirmé' : 'À confirmer'), valeur: (p) => p.valeur_courante?.statut || '' },
+  { cle: 'nb', libelle: 'Historique', tri: true, align: 'droite', texte: (p) => (p.nb_valeurs > 1 ? `${p.nb_valeurs} valeurs` : ''), valeur: (p) => p.nb_valeurs },
+]
 onMounted(charger)
 </script>
 
@@ -121,7 +131,7 @@ onMounted(charger)
     <div v-if="etat && etat.critiques_a_confirmer" class="bandeau attention" role="status">
       <AlertTriangle :size="18" />
       <span><strong>{{ etat.critiques_a_confirmer }} paramètre(s) critique(s)</strong> restent à confirmer ; la validation des bulletins sera bloquée tant qu'ils ne le sont pas.</span>
-      <button class="vbtn vbtn-secondary" @click="seulementAConfirmer = true; categorie = ''">Voir ceux à confirmer</button>
+      <button class="vbtn vbtn-secondary" data-hint="Afficher uniquement les paramètres encore à confirmer" @click="seulementAConfirmer = true; categorie = ''">Voir ceux à confirmer</button>
     </div>
     <p v-if="message" class="bandeau ok" role="status"><CheckCircle2 :size="18" />{{ message }}</p>
     <p v-if="erreur" class="message-erreur" role="alert">{{ erreur }}</p>
@@ -146,24 +156,15 @@ onMounted(charger)
       <span class="aide-mini">Le mot de passe du compte d'envoi se règle dans le fichier de configuration du serveur (SMTP_PASSWORD).</span>
     </form>
 
-    <div class="card tableau-cadre">
-      <table>
-        <thead><tr><th>Paramètre</th><th class="num">Valeur en vigueur</th><th>Depuis le</th><th>Statut</th><th></th></tr></thead>
-        <tbody>
-          <tr v-for="p in affiches" :key="p.cle" class="cliquable" tabindex="0" @click="ouvrir(p)" @keydown.enter="ouvrir(p)">
-            <td>
-              <div class="lib">{{ p.libelle }}<span v-if="p.critique" class="badge badge-info critique" title="Un paramètre critique « à confirmer » bloque la validation des bulletins">critique</span></div>
-              <div class="cle">{{ p.cle }}</div>
-            </td>
-            <td class="num"><strong>{{ formater(p) }}</strong></td>
-            <td class="nowrap">{{ p.valeur_courante ? dateFr(p.valeur_courante.date_effet) : '—' }}</td>
-            <td><span :class="['badge', p.valeur_courante?.statut === 'confirme' ? 'badge-ok' : 'badge-attente']">{{ p.valeur_courante?.statut === 'confirme' ? 'Confirmé' : 'À confirmer' }}</span></td>
-            <td class="nowrap detail">{{ p.nb_valeurs > 1 ? `${p.nb_valeurs} valeurs` : '' }}</td>
-          </tr>
-          <tr v-if="!affiches.length"><td colspan="5" class="vide">Aucun paramètre.</td></tr>
-        </tbody>
-      </table>
-    </div>
+    <DataTable :colonnes="colonnes" :lignes="affiches" cle-ligne="cle" ligne-cliquable :recherche="false" :taille-page="50" vide="Aucun paramètre." @ligne="ouvrir">
+      <template #cell-libelle="{ ligne }">
+        <div class="lib">{{ ligne.libelle }}<span v-if="ligne.critique" class="badge badge-info critique" data-hint="Un paramètre critique « à confirmer » bloque la validation des bulletins">critique</span></div>
+        <div class="cle">{{ ligne.cle }}</div>
+      </template>
+      <template #cell-valeur="{ ligne }"><strong>{{ formater(ligne) }}</strong></template>
+      <template #cell-statut="{ ligne }"><span :class="['badge', ligne.valeur_courante?.statut === 'confirme' ? 'badge-ok' : 'badge-attente']">{{ ligne.valeur_courante?.statut === 'confirme' ? 'Confirmé' : 'À confirmer' }}</span></template>
+      <template #cell-nb="{ ligne }"><span class="detail">{{ ligne.nb_valeurs > 1 ? `${ligne.nb_valeurs} valeurs` : '' }}</span></template>
+    </DataTable>
 
     <div v-if="choisi" class="voile" @click.self="fermer">
       <aside class="panneau" role="dialog" aria-modal="true" :aria-label="choisi.libelle">
@@ -223,7 +224,7 @@ onMounted(charger)
               </div>
             </form>
           </template>
-          <p v-else class="desc">Vous pouvez consulter ce paramètre ; sa modification nécessite le droit « Modifier les paramètres ».</p>
+          <p v-else class="desc">{{ surTelephone ? 'Consultation seulement sur téléphone : la modification se fait depuis un ordinateur.' : 'Vous pouvez consulter ce paramètre ; sa modification nécessite le droit « Modifier les paramètres ».' }}</p>
 
           <section>
             <h3>Historique</h3>
@@ -252,21 +253,17 @@ h1 { margin: 0; font-size: var(--font-size-xl); }
 .bandeau.ok { background: var(--color-vert-bg); color: var(--color-vert); }
 .filtres { display: flex; flex-direction: column; gap: var(--space-3); }
 .puces { display: flex; gap: 6px; flex-wrap: wrap; }
-.puce { border: 1px solid var(--color-border); background: var(--color-surface); border-radius: 999px; padding: 6px 14px; min-height: 36px; font-size: var(--font-size-sm); cursor: pointer; color: #475467; display: inline-flex; align-items: center; gap: 6px; }
+.puce { border: 1px solid var(--color-border); background: var(--color-surface); border-radius: 999px; padding: 6px 14px; min-height: 36px; font-size: var(--font-size-sm); cursor: pointer; color: var(--color-text-muted); display: inline-flex; align-items: center; gap: 6px; }
 .puce.active { background: var(--color-brand); color: #fff; border-color: var(--color-brand); }
 .point { background: var(--color-orange-bg); color: var(--color-orange); border-radius: 999px; font-size: 11px; font-weight: 700; padding: 1px 7px; }
 .outils { display: flex; gap: var(--space-4); align-items: center; flex-wrap: wrap; }
-.recherche { display: flex; align-items: center; gap: 8px; border: 1px solid #C9D2DD; border-radius: var(--radius-md); padding: 0 12px; background: var(--color-surface); min-height: 40px; color: var(--color-text-muted); }
+.recherche { display: flex; align-items: center; gap: 8px; border: 1px solid var(--color-border-fort); border-radius: var(--radius-md); padding: 0 12px; background: var(--color-surface); min-height: 40px; color: var(--color-text-muted); }
 .recherche input { border: none; outline: none; font-size: var(--font-size-sm); background: none; min-width: 180px; }
 .case { display: flex; align-items: center; gap: 8px; font-size: var(--font-size-sm); min-height: 32px; }
-.tableau-cadre { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
-th { text-align: left; padding: 10px 14px; background: #F8FAFC; color: var(--color-text-muted); font-weight: 600; border-bottom: 1px solid var(--color-border); }
-td { padding: 10px 14px; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .nowrap { white-space: nowrap; }
 .cliquable { cursor: pointer; }
-.cliquable:hover, .cliquable:focus-visible { background: #F6F9FC; outline: none; }
+.cliquable:hover, .cliquable:focus-visible { background: var(--color-surface-2); outline: none; }
 .lib { font-weight: 600; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .critique { font-size: 10px; padding: 1px 8px; }
 .cle { font-size: var(--font-size-xs); color: var(--color-text-muted); font-family: ui-monospace, monospace; }

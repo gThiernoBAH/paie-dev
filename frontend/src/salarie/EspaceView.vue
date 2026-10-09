@@ -27,7 +27,7 @@ function deconnexion() { fermerSession(); router.push('/login') }
 </template>
 
 <style scoped>
-.espace { min-height: 100%; display: flex; flex-direction: column; background: var(--color-bg, #F8FAFC); }
+.espace { min-height: 100%; display: flex; flex-direction: column; background: var(--color-bg, var(--color-surface-2)); }
 .haut { background: var(--color-brand-dark, #1B4D7A); color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; position: sticky; top: 0; z-index: 5; }
 .marque { display: flex; align-items: center; gap: 8px; } .marque span { opacity: .8; font-size: var(--font-size-sm); }
 .droite { display: flex; align-items: center; gap: 10px; } .nom { font-size: var(--font-size-sm); }

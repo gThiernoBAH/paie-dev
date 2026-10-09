@@ -11,6 +11,7 @@ from ..core import auth, models, schemas
 from ..core.database import get_db
 from ..core.permissions import PERMISSION_REGISTRY, PERMISSIONS_PAR_DEFAUT, ROLES
 from ..services import audit
+from ..services import salaries as svc_salaries
 from .auth_routes import require_permission, utilisateur_vers_sortie
 
 router = APIRouter(prefix="/admin", tags=["Administration"])
@@ -52,6 +53,33 @@ def _nombre_admins_actifs(db: Session) -> int:
     return db.query(models.Utilisateur).filter(models.Utilisateur.role == "admin", models.Utilisateur.est_actif.is_(True)).count()
 
 
+def _fiche_salarie(db: Session, brut: str) -> Optional[models.Salarie]:
+    """Fiche salarié correspondant à un identifiant saisi (matricule, zéros initiaux facultatifs), ou None."""
+    try:
+        matricule = svc_salaries.normaliser_matricule(brut)
+    except svc_salaries.MatriculeInvalide:
+        return None
+    return db.query(models.Salarie).filter_by(matricule=matricule).first()
+
+
+@router.get("/salarie-par-matricule/{matricule}")
+def salarie_par_matricule(
+    matricule: str, db: Session = Depends(get_db),
+    _: models.Utilisateur = Depends(require_permission("gerer_utilisateurs")),
+):
+    """Aide à la création d'un compte : si le matricule correspond à un salarié, ses données d'identité
+    sont renvoyées pour pré-remplir (et verrouiller) le formulaire."""
+    fiche = _fiche_salarie(db, matricule)
+    if not fiche:
+        return {"existe": False}
+    return {
+        "existe": True,
+        "matricule": fiche.matricule, "nom": fiche.nom, "prenom": fiche.prenoms,
+        "email": fiche.email, "telephone": fiche.telephone, "est_actif": fiche.est_actif,
+        "compte_existant": db.query(models.Utilisateur).filter_by(identifiant=fiche.matricule).first() is not None,
+    }
+
+
 @router.post("/utilisateurs", response_model=schemas.MotDePasseTemporaireOut, status_code=201)
 def creer_utilisateur(
     body: schemas.UtilisateurCreationIn,
@@ -63,13 +91,20 @@ def creer_utilisateur(
     # Seul un administrateur peut créer un autre administrateur (sinon élévation de privilèges).
     if body.role == "admin" and acteur.role != "admin":
         raise HTTPException(status_code=403, detail="Seul un administrateur peut créer un administrateur.")
+    identifiant, nom, prenom = body.identifiant.strip(), body.nom.strip(), (body.prenom or "").strip() or None
+    email, telephone = (body.email or "").strip().lower() or None, (body.telephone or "").strip() or None
+    # Un matricule connu fait foi : l'identité vient de la fiche salarié, jamais de la saisie (pas d'erreur de recopie).
+    fiche = _fiche_salarie(db, identifiant)
+    if fiche:
+        identifiant, nom, prenom = fiche.matricule, fiche.nom, fiche.prenoms
+        email, telephone = (fiche.email or email or "").strip().lower() or None, fiche.telephone or telephone
     mot_de_passe = auth.generer_mot_de_passe_temporaire()
     user = models.Utilisateur(
-        identifiant=body.identifiant.strip(),
-        nom=body.nom.strip(),
-        prenom=(body.prenom or "").strip() or None,
-        email=(body.email or "").strip().lower() or None,
-        telephone=(body.telephone or "").strip() or None,
+        identifiant=identifiant,
+        nom=nom,
+        prenom=prenom,
+        email=email,
+        telephone=telephone,
         role=body.role,
         mot_de_passe_hash=auth.get_password_hash(mot_de_passe),
         est_actif=True,
@@ -207,6 +242,8 @@ def consulter_audit(
     acteur: Optional[str] = Query(default=None, max_length=20),
     du: Optional[date] = None,
     au: Optional[date] = None,
+    tri: str = Query(default="id", pattern=r"^(id|horodatage|acteur_identifiant|action|cible_type|adresse_ip)$"),
+    sens: str = Query(default="desc", pattern=r"^(asc|desc)$"),
     db: Session = Depends(get_db),
     consultant: models.Utilisateur = Depends(require_permission("voir_audit")),
 ):
@@ -222,5 +259,7 @@ def consulter_audit(
             models.JournalAudit.horodatage < datetime.combine(au + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
         )
     total = requete.count()
-    lignes = requete.order_by(models.JournalAudit.id.desc()).offset((page - 1) * taille).limit(taille).all()
+    cle = getattr(models.JournalAudit, tri)
+    ordre = cle.desc().nulls_last() if sens == "desc" else cle.asc().nulls_last()
+    lignes = requete.order_by(ordre, models.JournalAudit.id.desc()).offset((page - 1) * taille).limit(taille).all()
     return schemas.AuditPageOut(total=total, page=page, taille=taille, elements=lignes)

@@ -1,13 +1,24 @@
 """Prêts et avances sur salaire : échéancier et prélèvement sur les bulletins."""
+from datetime import date
 from decimal import ROUND_DOWN, Decimal
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from ..core import models
+from . import exercices as svc_ex
 
 ORIGINE = "pret"
 CODE_RUBRIQUE = "PRE"
+
+MOTIFS_CLOTURE = {"depart": "Départ du salarié", "demission": "Démission", "deces": "Décès",
+                  "licenciement": "Licenciement", "autre": "Autre motif"}
+ISSUES = {"regularise": "Solde régularisé hors paie", "abandon": "Passé en perte (irrécouvrable)"}
+MODES_REGLEMENT = {"especes": "Espèces", "cheque": "Chèque", "virement": "Virement", "autre": "Autre"}
+
+
+class ErreurPret(ValueError):
+    """Message en français, affichable tel quel."""
 
 
 def creer(db: Session, s: models.Salarie, type_pret: str, libelle: str, montant: Decimal, nombre: int,
@@ -92,3 +103,105 @@ def remettre_a_prevoir(db: Session, campagne: models.Campagne) -> None:
         if e.pret.statut == "solde":
             e.pret.statut = "actif"
     db.flush()
+
+
+# ----------------------------------------------------------------- règlement manuel et clôture
+def montant_regle(pret: models.Pret) -> Decimal:
+    """Déjà remboursé : prélevé sur la paie ou réglé hors paie."""
+    return sum((e.montant for e in pret.echeances if e.statut in ("prelevee", "reglee")), Decimal(0))
+
+
+def montant_abandonne(pret: models.Pret) -> Decimal:
+    return sum((e.montant for e in pret.echeances if e.statut == "abandonnee"), Decimal(0))
+
+
+def _detacher(db: Session, e: models.EcheancePret, touchees: dict) -> None:
+    """Retire l'échéance d'une campagne non validée ; la campagne sera régénérée (saisie PRE) par l'appelant."""
+    if e.campagne_id:
+        c = db.get(models.Campagne, e.campagne_id)
+        if c is not None and c.statut in ("ouverte", "calculee"):
+            touchees[c.id] = c
+        e.campagne_id = None
+
+
+def _regenerer(db: Session, touchees: dict, salarie_id: int) -> list:
+    """Régénère les retenues de prêt des campagnes touchées ; renvoie les campagnes à recalculer."""
+    a_recalculer = []
+    for c in touchees.values():
+        appliquer(db, c, salarie_id)
+        if c.statut == "calculee":
+            a_recalculer.append(c.libelle)
+    return a_recalculer
+
+
+def _solder_si_fini(pret: models.Pret) -> None:
+    if pret.statut == "actif" and all(e.statut != "prevue" for e in pret.echeances):
+        pret.statut = "solde"
+
+
+def regler_echeance(db: Session, pret: models.Pret, e: models.EcheancePret, date_reglement: date, mode: str,
+                    commentaire: Optional[str], acteur: models.Utilisateur) -> list:
+    """Marque une échéance comme réglée hors paie : elle ne sera plus retenue sur les bulletins."""
+    if pret.statut != "actif":
+        raise ErreurPret("Ce prêt n'est plus actif.")
+    interdit = svc_ex.message_si_cloture(db, date_reglement)
+    if interdit:
+        raise ErreurPret(interdit)
+    if e.pret_id != pret.id:
+        raise ErreurPret("Échéance étrangère à ce prêt.")
+    if e.statut != "prevue":
+        raise ErreurPret("Seule une échéance « prévue » peut être marquée comme réglée.")
+    if mode not in MODES_REGLEMENT:
+        raise ErreurPret("Mode de règlement inconnu.")
+    touchees: dict = {}
+    _detacher(db, e, touchees)
+    e.statut, e.date_reglement, e.mode_reglement = "reglee", date_reglement, mode
+    e.regle_par, e.commentaire = acteur.identifiant, (commentaire or None)
+    db.flush()
+    _solder_si_fini(pret)
+    db.flush()
+    return _regenerer(db, touchees, pret.salarie_id)
+
+
+def rouvrir_echeance(db: Session, pret: models.Pret, e: models.EcheancePret) -> None:
+    """Annule un règlement manuel saisi par erreur (les prélèvements sur paie ne sont jamais défaits ici)."""
+    if pret.statut == "cloture":
+        raise ErreurPret("Ce prêt est clôturé : ses échéances ne peuvent plus être modifiées.")
+    if e.pret_id != pret.id or e.statut != "reglee":
+        raise ErreurPret("Seul un règlement manuel peut être annulé.")
+    e.statut, e.date_reglement, e.mode_reglement, e.regle_par, e.commentaire = "prevue", None, None, None, None
+    if pret.statut == "solde":
+        pret.statut = "actif"
+    db.flush()
+
+
+def cloturer(db: Session, pret: models.Pret, motif: str, issue: str, date_cloture: date, commentaire: Optional[str],
+             acteur: models.Utilisateur) -> list:
+    """Clôture anticipée d'un prêt jamais remboursé en totalité (départ surprise, démission, décès…).
+
+    Le reste dû est soit régularisé hors paie, soit passé en perte ; dans les deux cas les échéances restantes
+    quittent les campagnes et le prêt ne produit plus aucune retenue."""
+    if pret.statut != "actif":
+        raise ErreurPret("Seul un prêt actif peut être clôturé.")
+    interdit = svc_ex.message_si_cloture(db, date_cloture)
+    if interdit:
+        raise ErreurPret(interdit)
+    if motif not in MOTIFS_CLOTURE:
+        raise ErreurPret("Motif de clôture inconnu.")
+    if issue not in ISSUES:
+        raise ErreurPret("Issue de clôture inconnue.")
+    restantes = [e for e in pret.echeances if e.statut == "prevue"]
+    if not restantes:
+        raise ErreurPret("Il ne reste aucune échéance à clôturer.")
+    touchees: dict = {}
+    for e in restantes:
+        _detacher(db, e, touchees)
+        if issue == "regularise":
+            e.statut, e.date_reglement, e.mode_reglement, e.regle_par = "reglee", date_cloture, "autre", acteur.identifiant
+        else:
+            e.statut = "abandonnee"
+        e.commentaire = f"Clôture : {MOTIFS_CLOTURE[motif]}"[:200]
+    pret.statut, pret.date_cloture, pret.motif_cloture, pret.issue_cloture = "cloture", date_cloture, motif, issue
+    pret.commentaire_cloture, pret.cloture_par = (commentaire or None), acteur.identifiant
+    db.flush()
+    return _regenerer(db, touchees, pret.salarie_id)

@@ -10,9 +10,13 @@ from sqlalchemy.orm import Session
 
 from ..core import models
 from ..moteur import calcul
+from ..moteur.arrondis import centimes
 from ..moteur.modeles import EntreeBulletin, ParametresPaie, Rubrique
 from ..moteur.parametres_paie import charger
 from . import parametres as param
+from . import conges as svc_conges
+from . import discipline as svc_discipline
+from . import rubriques_fixes as svc_fixes
 from . import prets as svc_prets
 from . import presences as svc_presences
 from . import salaries as svc_salaries
@@ -122,6 +126,29 @@ def _identite(s: models.Salarie) -> dict:
     }
 
 
+def _rubriques_conges(db: Session, campagne: models.Campagne, salarie: models.Salarie, salaire) -> list:
+    """Mode « indemnité de congés » : les jours de congé annuel approuvés du mois sortent du salaire de base
+    (ligne CGR) et sont payés par une indemnité (ligne ICP), valorisée à salaire mensuel ÷ jours de référence,
+    majorée du pourcentage paramétré. En mode « maintien du salaire » (défaut), le bulletin n'est pas touché."""
+    if campagne.type_campagne != "mensuelle" or campagne.nature_bulletin != "mensuel":
+        return []
+    if param.lire(db, "conges_mode_paiement", campagne.fin) != "indemnite_conges":
+        return []
+    jours = Decimal(0)
+    for c in db.query(models.Conge).filter(models.Conge.salarie_id == salarie.id, models.Conge.type_conge == "annuel",
+                                           models.Conge.statut == "approuve", models.Conge.debut <= campagne.fin,
+                                           models.Conge.fin >= campagne.debut).all():
+        jours += svc_conges.jours_ouvrables(db, max(c.debut, campagne.debut), min(c.fin, campagne.fin))
+    if jours <= 0:
+        return []
+    base = Decimal(str(param.lire(db, "conges_jours_base_mensuelle", campagne.fin)))
+    majoration = Decimal(str(param.lire(db, "conges_majoration_indemnite", campagne.fin)))
+    retenue = centimes((Decimal(salaire.montant) + Decimal(salaire.sursalaire or 0)) * jours / base)
+    indemnite = centimes(retenue * (Decimal(100) + majoration) / Decimal(100))
+    return [Rubrique("CGR", "Congés payés pris (retenue sur salaire)", "RI", retenue, jours),
+            Rubrique("ICP", "Indemnité de congés payés", "GI", indemnite, jours)]
+
+
 def construire_entree(db: Session, campagne: models.Campagne, salarie: models.Salarie, presence: models.PresencePeriode) -> EntreeBulletin:
     salaire = svc_salaries.salaire_en_vigueur(salarie, campagne.fin)
     if salaire is None:
@@ -129,15 +156,22 @@ def construire_entree(db: Session, campagne: models.Campagne, salarie: models.Sa
     journalier = campagne.nature_bulletin == "journalier"
     saisies = db.query(models.SaisieRubrique).filter_by(campagne_id=campagne.id, salarie_id=salarie.id).order_by(models.SaisieRubrique.id).all()
     cmu_journaliers = param.lire(db, "cmu_applicable_journaliers", campagne.fin)
+    # Mise à pied (sans solde) : jours ouvrés couverts = absences non payées, bulletins mensuels seulement.
+    mise_a_pied = svc_discipline.jours_mise_a_pied(db, salarie.id, campagne.debut, campagne.fin) if not journalier else Decimal(0)
+    jours_ja = min(Decimal(31), Decimal(presence.jours_absence_ja or 0) + mise_a_pied)
+    # Rubriques fixes du salarié (bulletins mensuels de campagne mensuelle) puis rubriques propres au mode de paiement des congés.
+    fixes = svc_fixes.rubriques_du_mois(db, salarie.id, campagne.debut, campagne.fin) \
+        if (campagne.type_campagne == "mensuelle" and not journalier) else []
+    supplementaires = tuple(fixes) + tuple(_rubriques_conges(db, campagne, salarie, salaire))
     return EntreeBulletin(
         nature=campagne.nature_bulletin, debut=campagne.debut, fin=campagne.fin, parts=Decimal(salarie.nombre_parts),
         personnes_cmu=0 if (journalier and not cmu_journaliers) else salarie.nombre_personnes_cmu,
         date_entree=salarie.date_embauche, salaire_categoriel=salaire.montant, sursalaire=salaire.sursalaire,
-        jours_payes=presence.jours_payes, jours_absence_ja=presence.jours_absence_ja, heures_absence=presence.heures_absence,
+        jours_payes=presence.jours_payes, jours_absence_ja=jours_ja, heures_absence=presence.heures_absence,
         indemnite_transport=salarie.indemnite_transport, heures_travaillees=presence.heures_travaillees,
         jours_presence=presence.jours_presence,
         heures_sup={1: presence.hs1, 2: presence.hs2, 3: presence.hs3, 4: presence.hs4},
-        rubriques=tuple(Rubrique(s.code, s.libelle, s.type, s.montant, s.quantite) for s in saisies),
+        rubriques=supplementaires + tuple(Rubrique(s.code, s.libelle, s.type, s.montant, s.quantite) for s in saisies),
     )
 
 

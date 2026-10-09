@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core import models
@@ -120,3 +121,132 @@ def mouvements(db: Session, du: date, au: date) -> dict:
     lignes.sort(key=lambda l: (l[0], l[2]))
     return {"titre": f"Mouvements du {du.strftime('%d/%m/%Y')} au {au.strftime('%d/%m/%Y')}",
             "entetes": ["Date", "Mouvement", "Matricule", "Nom et prénoms", "Service", "Motif"], "lignes": lignes, "totaux": {}}
+
+
+# ----------------------------------------------------------------- listes et journaux (reprise des états du legacy)
+def _nom_complet(s: models.Salarie) -> str:
+    return f"{s.nom} {s.prenoms or ''}".strip()
+
+
+def liste_personnel(db: Session, au: Optional[date] = None, inclure_sortis: bool = False) -> dict:
+    """Liste nominative du personnel (sans montant)."""
+    jour = au or date.today()
+    entetes = ["Matricule", "Nom et prénoms", "Service", "Section", "Emploi", "Catégorie", "Type de contrat", "Rémunération",
+               "Date d'embauche", "Ancienneté (ans)", "Statut"]
+    lignes = []
+    for s in db.query(models.Salarie).order_by(models.Salarie.matricule).all():
+        en_activite = (s.date_embauche is None or s.date_embauche <= jour) and (s.date_sortie is None or s.date_sortie > jour)
+        if not en_activite and not inclure_sortis:
+            continue
+        anciennete = round((jour - s.date_embauche).days / 365.25, 1) if s.date_embauche and s.date_embauche <= jour else ""
+        lib = lambda r: r.libelle if r else ""
+        lignes.append([s.matricule, _nom_complet(s), lib(s.service), lib(s.section), lib(s.emploi), lib(s.categorie), lib(s.type_contrat),
+                       "Journalier" if s.type_remuneration == "journalier" else "Mensuel", s.date_embauche or "", anciennete,
+                       "En activité" if en_activite else "Sorti"])
+    return {"titre": f"Liste du personnel au {jour.strftime('%d/%m/%Y')}", "entetes": entetes, "lignes": lignes, "totaux": {}}
+
+
+def situation_famille(db: Session, au: Optional[date] = None) -> dict:
+    """Situation familiale, parts fiscales et personnes à charge (base de la CMU et de l'ITS)."""
+    jour = au or date.today()
+    entetes = ["Matricule", "Nom et prénoms", "Situation", "Enfants à charge", "Parts fiscales", "Personnes CMU", "Détail des enfants"]
+    libelles = {"celibataire": "Célibataire", "marie": "Marié(e)", "divorce": "Divorcé(e)", "veuf": "Veuf(ve)"}
+    enfants = defaultdict(list)
+    for e in db.query(models.EnfantSalarie).filter_by(a_charge=True).order_by(models.EnfantSalarie.date_naissance).all():
+        age = (jour.year - e.date_naissance.year - ((jour.month, jour.day) < (e.date_naissance.month, e.date_naissance.day))) if e.date_naissance else None
+        enfants[e.salarie_id].append(f"{e.prenoms or e.nom} ({'?' if age is None else str(age) + ' ans'})")
+    lignes = []
+    for s in db.query(models.Salarie).order_by(models.Salarie.matricule).all():
+        if (s.date_sortie and s.date_sortie <= jour) or (s.date_embauche and s.date_embauche > jour):
+            continue
+        lignes.append([s.matricule, _nom_complet(s), libelles.get(s.situation_matrimoniale, s.situation_matrimoniale), s.nombre_enfants,
+                       s.nombre_parts, s.nombre_personnes_cmu, ", ".join(enfants.get(s.id, []))])
+    return {"titre": f"Situation de famille au {jour.strftime('%d/%m/%Y')}", "entetes": entetes, "lignes": lignes, "totaux": {}}
+
+
+def journal_rubriques(db: Session, annee: int, mois: int) -> dict:
+    """Journal des rubriques variables et fixes d'un mois (nominatif, montants : droit sensible)."""
+    entetes = ["Campagne", "Matricule", "Nom et prénoms", "Code", "Libellé", "Type", "Origine", "Quantité", "Montant"]
+    lignes = []
+    q = db.query(models.SaisieRubrique, models.Campagne, models.Salarie)\
+        .join(models.Campagne, models.Campagne.id == models.SaisieRubrique.campagne_id)\
+        .join(models.Salarie, models.Salarie.id == models.SaisieRubrique.salarie_id)\
+        .filter(models.Campagne.annee == annee, models.Campagne.mois == mois)\
+        .order_by(models.Campagne.numero, models.Salarie.matricule, models.SaisieRubrique.id)
+    for s, c, sal in q.all():
+        lignes.append([c.libelle, sal.matricule, _nom_complet(sal), s.code, s.libelle, s.type, s.origine, s.quantite if s.quantite is not None else "", s.montant])
+    tot = {"Montant": sum((l[8] for l in lignes), D(0))}
+    return {"titre": f"Journal des rubriques {MOIS[mois]} {annee}", "entetes": entetes, "lignes": lignes, "totaux": tot}
+
+
+def journal_presences(db: Session, annee: int, mois: int) -> dict:
+    entetes = ["Campagne", "Matricule", "Nom et prénoms", "Jours payés", "Jours de présence", "Heures travaillées", "Absences (jours)",
+               "Absences (heures)", "HS1", "HS2", "HS3", "HS4"]
+    lignes = []
+    q = db.query(models.PresencePeriode, models.Campagne, models.Salarie)\
+        .join(models.Campagne, models.Campagne.id == models.PresencePeriode.campagne_id)\
+        .join(models.Salarie, models.Salarie.id == models.PresencePeriode.salarie_id)\
+        .filter(models.Campagne.annee == annee, models.Campagne.mois == mois)\
+        .order_by(models.Campagne.numero, models.Salarie.matricule)
+    for p, c, s in q.all():
+        lignes.append([c.libelle, s.matricule, _nom_complet(s), p.jours_payes, p.jours_presence, p.heures_travaillees, p.jours_absence_ja,
+                       p.heures_absence, p.hs1, p.hs2, p.hs3, p.hs4])
+    tot = {e: sum((l[i] for l in lignes), D(0)) for i, e in enumerate(entetes) if i >= 3}
+    return {"titre": f"Journal des présences {MOIS[mois]} {annee}", "entetes": entetes, "lignes": lignes, "totaux": tot}
+
+
+def journal_conges(db: Session, annee: int) -> dict:
+    entetes = ["Matricule", "Nom et prénoms", "Type", "Du", "Au", "Jours ouvrables", "Statut", "Motif"]
+    types = {"annuel": "Congé annuel", "exceptionnel": "Permission exceptionnelle", "maladie": "Maladie", "maternite": "Maternité", "sans_solde": "Sans solde"}
+    statuts = {"demande": "À traiter", "approuve": "Approuvé", "refuse": "Refusé", "annule": "Annulé"}
+    lignes = []
+    for c in db.query(models.Conge).filter(func.extract("year", models.Conge.debut) == annee).order_by(models.Conge.debut).all():
+        lignes.append([c.salarie.matricule, _nom_complet(c.salarie), types.get(c.type_conge, c.type_conge), c.debut, c.fin, c.jours_ouvrables,
+                       statuts.get(c.statut, c.statut), c.motif or ""])
+    tot = {"Jours ouvrables": sum((l[5] for l in lignes if l[6] == "Approuvé"), D(0))}
+    return {"titre": f"Journal des congés et absences {annee}", "entetes": entetes, "lignes": lignes, "totaux": tot}
+
+
+def journal_prets(db: Session) -> dict:
+    """État des prêts et avances : remboursé, reste dû, abandonné (nominatif, montants)."""
+    from . import prets as svc_prets
+    entetes = ["Matricule", "Nom et prénoms", "Libellé", "Type", "Montant", "Remboursé", "Reste dû", "Abandonné", "Statut", "Clôture"]
+    statuts = {"actif": "En cours", "solde": "Soldé", "annule": "Annulé", "cloture": "Clôturé"}
+    lignes = []
+    for p in db.query(models.Pret).order_by(models.Pret.id).all():
+        cloture = ""
+        if p.statut == "cloture":
+            cloture = f"{svc_prets.MOTIFS_CLOTURE.get(p.motif_cloture, p.motif_cloture)} – {svc_prets.ISSUES.get(p.issue_cloture, p.issue_cloture)}"
+        lignes.append([p.salarie.matricule, _nom_complet(p.salarie), p.libelle, "Avance" if p.type_pret == "avance" else "Prêt", p.montant,
+                       svc_prets.montant_regle(p), svc_prets.reste_a_rembourser(p), svc_prets.montant_abandonne(p), statuts.get(p.statut, p.statut), cloture])
+    tot = {e: sum((l[i] for l in lignes), D(0)) for i, e in enumerate(entetes) if i in (4, 5, 6, 7)}
+    return {"titre": "État des prêts et avances", "entetes": entetes, "lignes": lignes, "totaux": tot}
+
+
+def bulletins_a_controler(db: Session, annee: int, mois: int) -> dict:
+    """Bulletins non validés du mois, avec leurs anomalies : à lire avant de valider une campagne."""
+    entetes = ["Campagne", "Statut campagne", "Matricule", "Nom et prénoms", "Net à payer", "Anomalies"]
+    statuts = {"ouverte": "Ouverte", "calculee": "Calculée", "validee": "Validée", "cloturee": "Clôturée"}
+    lignes = []
+    q = db.query(models.Bulletin, models.Campagne).join(models.Campagne, models.Campagne.id == models.Bulletin.campagne_id)\
+        .filter(models.Campagne.annee == annee, models.Campagne.mois == mois, models.Bulletin.statut != "valide")\
+        .order_by(models.Campagne.numero, models.Bulletin.id)
+    for b, c in q.all():
+        i = b.identite
+        lignes.append([c.libelle, statuts.get(c.statut, c.statut), i["matricule"], f"{i['nom']} {i.get('prenoms') or ''}".strip(), b.net_a_payer, " ".join(b.anomalies)])
+    return {"titre": f"Bulletins à contrôler {MOIS[mois]} {annee}", "entetes": entetes, "lignes": lignes, "totaux": {}}
+
+
+def cumuls_annuels(db: Session, annee: int) -> dict:
+    """Cumuls de l'année par salarié (bulletins validés) : jours, brut imposable, CNPS, ITS, net, coût employeur."""
+    entetes = ["Matricule", "Nom et prénoms", "Mois payés", "Brut imposable", "Gains non imposables", "CNPS salarié", "ITS", "Net payé", "Coût employeur"]
+    par = defaultdict(lambda: {"nom": "", "mois": set(), "brut": D(0), "gni": D(0), "cnps": D(0), "its": D(0), "net": D(0), "cout": D(0)})
+    for b, c in _bulletins(db, annee):
+        a = par[b.identite["matricule"]]
+        a["nom"] = f"{b.identite['nom']} {b.identite.get('prenoms') or ''}".strip()
+        a["mois"].add(c.mois)
+        a["brut"] += b.total_imposable; a["gni"] += b.gains_non_imposables; a["cnps"] += b.cnps; a["its"] += b.its
+        a["net"] += b.net_a_payer; a["cout"] += _cout(b)
+    lignes = [[m, a["nom"], len(a["mois"]), a["brut"], a["gni"], a["cnps"], a["its"], a["net"], a["cout"]] for m, a in sorted(par.items())]
+    tot = {e: sum((l[i] for l in lignes), D(0)) for i, e in enumerate(entetes) if i >= 3}
+    return {"titre": f"Cumuls annuels {annee}", "entetes": entetes, "lignes": lignes, "totaux": tot}

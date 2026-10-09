@@ -40,7 +40,7 @@ onMounted(charger)
 
     <template v-if="!detail">
       <p v-if="chargement" class="vide">Chargement…</p>
-      <p v-else-if="!bulletins.length" class="vide">Aucun bulletin disponible pour l'instant.</p>
+      <p v-else-if="!bulletins.length" class="vide">Aucun bulletin disponible pour l'instant.<br /><small>Un bulletin apparaît ici dès qu'il a été validé par le service Paie.</small></p>
       <ul class="liste">
         <li v-for="b in bulletins" :key="b.id" class="card carte">
           <div class="info">
@@ -49,8 +49,8 @@ onMounted(charger)
             <span v-if="!b.lu" class="badge nouveau">Nouveau</span>
           </div>
           <div class="actions">
-            <button class="vbtn vbtn-secondary" @click="voir(b)"><Eye :size="16" />Voir</button>
-            <button class="vbtn vbtn-primary" @click="pdf(b)"><Download :size="16" />PDF</button>
+            <button class="vbtn vbtn-secondary" data-hint="Afficher le détail de ce bulletin" @click="voir(b)"><Eye :size="16" />Voir</button>
+            <button class="vbtn vbtn-primary" data-hint="Télécharger ce bulletin au format PDF" @click="pdf(b)"><Download :size="16" />PDF</button>
           </div>
         </li>
       </ul>
@@ -86,7 +86,7 @@ h1 { font-size: var(--font-size-lg); margin: 0 0 var(--space-3); } h2 { font-siz
 .detail { padding: var(--space-4); } .retour { border: none; background: none; color: var(--color-brand-dark); display: inline-flex; align-items: center; cursor: pointer; padding: 6px 0; min-height: 40px; }
 .lignes { display: flex; flex-direction: column; } .ligne-b { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--color-border); font-size: var(--font-size-sm); }
 .ret { color: var(--color-rouge); }
-.total { background: #F8FAFC; font-weight: 600; }
+.total { background: var(--color-surface-2); font-weight: 600; }
 .totaux { margin-top: var(--space-3); display: flex; flex-direction: column; gap: 6px; font-size: var(--font-size-sm); } .totaux div { display: flex; justify-content: space-between; }
-.net-final { font-size: var(--font-size-base); padding: 10px; background: #F1F5F9; border-radius: var(--radius-md); }
+.net-final { font-size: var(--font-size-base); padding: 10px; background: var(--color-brand-light); border-radius: var(--radius-md); }
 </style>

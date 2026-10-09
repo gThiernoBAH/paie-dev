@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { estMobile } from '@/composables/useEcran'
 import apiClient, { messageErreur } from '@/api/client'
 import { ouvrirSession } from '@/api/session'
 import { User, Lock, Eye, EyeOff, Banknote } from 'lucide-vue-next'
@@ -21,6 +22,7 @@ const handleLogin = async () => {
     const response = await apiClient.post('/auth/login', {
       identifiant: identifiant.value.trim(),
       password: password.value,
+      canal: estMobile() ? 'mobile' : 'pc',
     })
     ouvrirSession(response.data)
     // Le guard du routeur redirige vers le changement de mot de passe si nécessaire.
@@ -84,7 +86,7 @@ const handleLogin = async () => {
 .login-form { display: flex; flex-direction: column; gap: var(--space-4); }
 .input-group { position: relative; display: flex; align-items: center; }
 .input-icon { position: absolute; left: 14px; color: var(--color-text-muted); pointer-events: none; }
-.input-group input { width: 100%; height: var(--touch-target-min); padding: 0 var(--space-3) 0 44px; border: 1px solid #C9D2DD; border-radius: var(--radius-md); font-size: var(--font-size-base); color: var(--color-text); background: var(--color-surface); outline: none; transition: border-color 0.15s; }
+.input-group input { width: 100%; height: var(--touch-target-min); padding: 0 var(--space-3) 0 44px; border: 1px solid var(--color-border-fort); border-radius: var(--radius-md); font-size: var(--font-size-base); color: var(--color-text); background: var(--color-surface); outline: none; transition: border-color 0.15s; }
 .input-group input:focus { border-color: var(--color-brand); outline: 2px solid var(--color-brand); }
 .toggle-pwd { position: absolute; right: 4px; width: 40px; height: 40px; background: none; border: none; color: var(--color-text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .submit-btn { height: var(--touch-target-min); border: none; border-radius: var(--radius-md); background: var(--color-brand); color: var(--color-text-inverse); font-size: var(--font-size-base); font-weight: 700; cursor: pointer; transition: background 0.15s; }

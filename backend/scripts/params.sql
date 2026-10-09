@@ -560,3 +560,101 @@ INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite
 INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
   VALUES ('email_alerte_virement_destinataires', '-', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale – à renseigner', 'système')
   ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+
+-- Étape 5 : lettres (virement, discipline)
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('entreprise_compte_debiteur', 'entreprise', 'N° compte débiteur (virements)', 'Compte de lentreprise débité par les virements de paie ; imprimé sur les lettres de virement.', 'texte', NULL, NULL, NULL, NULL, FALSE, 45)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('entreprise_compte_debiteur', 'À renseigner', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('entreprise_signataire', 'entreprise', 'Signataire des lettres', 'Nom et fonction de la personne qui signe les lettres de virement et les mesures disciplinaires.', 'texte', NULL, NULL, NULL, NULL, FALSE, 46)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('entreprise_signataire', 'Le Directeur Général', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('entreprise_ville', 'entreprise', 'Ville (lieu des lettres)', 'Ville imprimée devant la date sur les lettres.', 'texte', NULL, NULL, NULL, NULL, FALSE, 47)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('entreprise_ville', 'Abidjan', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+
+-- Octobre 2026 : paie des congés
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('conges_mode_paiement', 'conges', 'Congés – mode de paiement', 'maintien_salaire : le salarié en congé annuel est payé normalement, le bulletin ne change pas. indemnite_conges : les jours de congé annuel approuvés du mois sortent du salaire de base (ligne CGR) et sont payés par une indemnité de congés payés (ligne ICP).', 'texte', NULL, NULL, NULL, 'maintien_salaire,indemnite_conges', FALSE, 560)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('conges_mode_paiement', 'maintien_salaire', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale – à confirmer', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('conges_majoration_indemnite', 'conges', 'Congés – majoration de l''indemnité', 'Pourcentage ajouté à l''indemnité de congés payés (mode « indemnite_conges » seulement). 0 = indemnité égale au salaire retenu.', 'pourcentage', '%', 0, 100, NULL, FALSE, 561)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('conges_majoration_indemnite', '0', DATE '2000-01-01', 'a_confirmer', 'Valeur initiale – à confirmer', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+
+-- Présentation du bulletin (réglages modifiables sans toucher au calcul)
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('bulletin_afficher_cumuls', 'bulletin', 'Bulletin – afficher les cumuls annuels', 'Ajoute au bas du bulletin les cumuls de l''année (imposable, CNPS, ITS, net) jusqu''à ce mois.', 'booleen', NULL, NULL, NULL, NULL, FALSE, 600)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('bulletin_afficher_cumuls', 'false', DATE '2000-01-01', 'confirme', 'Réglage de présentation (valeur d''origine)', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('bulletin_afficher_conges', 'bulletin', 'Bulletin – afficher le solde de congés', 'Ajoute le solde de congés annuels du salarié à la date de fin de période.', 'booleen', NULL, NULL, NULL, NULL, FALSE, 601)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('bulletin_afficher_conges', 'false', DATE '2000-01-01', 'confirme', 'Réglage de présentation (valeur d''origine)', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('bulletin_afficher_charges_patronales', 'bulletin', 'Bulletin – afficher les charges patronales', 'Ajoute le total des charges patronales de la période (information employeur).', 'booleen', NULL, NULL, NULL, NULL, FALSE, 602)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('bulletin_afficher_charges_patronales', 'false', DATE '2000-01-01', 'confirme', 'Réglage de présentation (valeur d''origine)', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('bulletin_afficher_net_en_lettres', 'bulletin', 'Bulletin – net à payer en toutes lettres', 'Imprime « Arrêté le présent bulletin à la somme de… ».', 'booleen', NULL, NULL, NULL, NULL, FALSE, 603)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('bulletin_afficher_net_en_lettres', 'true', DATE '2000-01-01', 'confirme', 'Réglage de présentation (valeur d''origine)', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('bulletin_afficher_mode_paiement', 'bulletin', 'Bulletin – afficher le mode de paiement', '', 'booleen', NULL, NULL, NULL, NULL, FALSE, 604)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('bulletin_afficher_mode_paiement', 'true', DATE '2000-01-01', 'confirme', 'Réglage de présentation (valeur d''origine)', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('bulletin_afficher_identite_emploi', 'bulletin', 'Bulletin – afficher emploi, catégorie et service', 'Si non, le bloc identité se limite au matricule, au nom, à l''embauche et aux parts.', 'booleen', NULL, NULL, NULL, NULL, FALSE, 605)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('bulletin_afficher_identite_emploi', 'true', DATE '2000-01-01', 'confirme', 'Réglage de présentation (valeur d''origine)', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('bulletin_mentions_legales', 'bulletin', 'Bulletin – mention de bas de page', 'Texte imprimé sous le bulletin (ex. conservation). Saisir un tiret (-) pour ne rien imprimer.', 'texte', NULL, NULL, NULL, NULL, FALSE, 606)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('bulletin_mentions_legales', 'Conservez ce bulletin sans limitation de durée.', DATE '2000-01-01', 'confirme', 'Réglage de présentation (valeur d''origine)', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('bulletin_pied_de_page', 'bulletin', 'Bulletin – pied de page libre', 'Deuxième ligne de bas de page (coordonnées, mention spécifique…). Saisir un tiret (-) pour ne rien imprimer.', 'texte', NULL, NULL, NULL, NULL, FALSE, 607)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('bulletin_pied_de_page', '-', DATE '2000-01-01', 'confirme', 'Réglage de présentation (valeur d''origine)', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('bulletin_logo_hauteur_mm', 'bulletin', 'Bulletin – hauteur du logo (mm)', 'Hauteur du logo sur les bulletins (le logo se dépose dans backend/app/assets/logo.png).', 'decimal', 'mm', 8, 30, NULL, FALSE, 608)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('bulletin_logo_hauteur_mm', '14', DATE '2000-01-01', 'confirme', 'Réglage de présentation (valeur d''origine)', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;
+
+-- Grille salariale
+INSERT INTO parametres (cle, categorie, libelle, description, type_valeur, unite, valeur_min, valeur_max, choix, critique, ordre)
+  VALUES ('grille_blocage_sous_minimum', 'grille', 'Grille – refuser un salaire inférieur à la grille', 'Si oui, une nouvelle évolution de salaire catégoriel inférieure au salaire de la grille (catégorie + tranche) est refusée. Si non, seul un avertissement s''affiche.', 'booleen', NULL, NULL, NULL, NULL, FALSE, 620)
+  ON CONFLICT (cle) DO NOTHING;
+INSERT INTO valeurs_parametres (parametre_cle, valeur, date_effet, statut, source, cree_par)
+  VALUES ('grille_blocage_sous_minimum', 'false', DATE '2000-01-01', 'confirme', 'Réglage de présentation (valeur d''origine)', 'système')
+  ON CONFLICT (parametre_cle, date_effet) DO NOTHING;

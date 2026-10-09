@@ -9,6 +9,7 @@ from .permissions import ROLES
 class ConnexionIn(BaseModel):
     identifiant: str = Field(min_length=1, max_length=20)
     password: str = Field(min_length=1, max_length=200)
+    canal: Optional[str] = Field(default=None, pattern=r"^(pc|mobile)$")   # déclaré par l'interface (écran étroit)
 
 
 class UtilisateurOut(BaseModel):
@@ -203,6 +204,7 @@ class SalarieChampsIn(BaseModel):
     section_id: Optional[int] = None
     emploi_id: Optional[int] = None
     categorie_id: Optional[int] = None
+    tranche: Optional[int] = Field(default=None, ge=1, le=5)
     site_id: Optional[int] = None
     type_remuneration: Optional[str] = Field(default=None, pattern=r"^(mensuel|journalier)$")
     eligible_heures_sup: Optional[bool] = None
@@ -211,6 +213,9 @@ class SalarieChampsIn(BaseModel):
     # Données sensibles : exigent le droit « voir_donnees_sensibles ».
     rib: Optional[str] = Field(default=None, max_length=40)
     numero_cnps: Optional[str] = Field(default=None, max_length=30)
+    # Pour l'historique des mutations : date d'effet (défaut : aujourd'hui) et motif d'un changement d'affectation.
+    date_effet_mutation: Optional[date] = None
+    motif_mutation: Optional[str] = Field(default=None, max_length=200)
 
 
 class SalarieCreationIn(SalarieChampsIn):

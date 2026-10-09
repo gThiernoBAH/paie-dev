@@ -134,6 +134,7 @@ class Salarie(Base):
     section_id = Column(Integer, ForeignKey("referentiels.id"))
     emploi_id = Column(Integer, ForeignKey("referentiels.id"))
     categorie_id = Column(Integer, ForeignKey("referentiels.id"))
+    tranche = Column(Integer)
     site_id = Column(Integer, ForeignKey("referentiels.id"))
     type_remuneration = Column(String(10), nullable=False, default="mensuel")
     eligible_heures_sup = Column(Boolean, nullable=False, default=True)
@@ -172,8 +173,78 @@ class EvolutionSalaire(Base):
     motif = Column(String(200))
     cree_par = Column(String(20))
     cree_le = Column(DateTime(timezone=True), server_default=func.now())
+    lot_id = Column(Integer, ForeignKey("augmentations_lots.id", ondelete="SET NULL"))
 
     salarie = relationship("Salarie", back_populates="evolutions")
+
+
+class MutationSalarie(Base):
+    """Changement d'affectation ou de situation d'un salarié (service, section, emploi, catégorie, site, contrat…)."""
+    __tablename__ = "mutations_salaries"
+
+    id = Column(Integer, primary_key=True)
+    salarie_id = Column(Integer, ForeignKey("salaries.id", ondelete="CASCADE"), nullable=False)
+    date_effet = Column(Date, nullable=False)
+    nature = Column(String(20), nullable=False)
+    ancienne_valeur = Column(String(150))
+    nouvelle_valeur = Column(String(150))
+    motif = Column(String(200))
+    cree_par = Column(String(20))
+    cree_le = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class EnfantSalarie(Base):
+    """Personne à charge déclarée par le salarié (enfant ou conjoint)."""
+    __tablename__ = "enfants_salaries"
+
+    id = Column(Integer, primary_key=True)
+    salarie_id = Column(Integer, ForeignKey("salaries.id", ondelete="CASCADE"), nullable=False)
+    lien = Column(String(10), nullable=False, default="enfant")
+    nom = Column(String(100), nullable=False)
+    prenoms = Column(String(150))
+    sexe = Column(String(1))
+    date_naissance = Column(Date)
+    a_charge = Column(Boolean, nullable=False, default=True)
+    scolarise = Column(Boolean, nullable=False, default=False)
+    cree_le = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class RubriqueFixe(Base):
+    """Prime ou retenue récurrente d'un salarié, ajoutée à chaque bulletin mensuel tant qu'elle est en vigueur."""
+    __tablename__ = "rubriques_fixes"
+
+    id = Column(Integer, primary_key=True)
+    salarie_id = Column(Integer, ForeignKey("salaries.id", ondelete="CASCADE"), nullable=False)
+    code = Column(String(6), ForeignKey("rubriques.code"), nullable=False)
+    montant = Column(Numeric(14, 2), nullable=False)
+    date_debut = Column(Date, nullable=False)
+    date_fin = Column(Date)
+    commentaire = Column(String(200))
+    est_actif = Column(Boolean, nullable=False, default=True)
+    cree_par = Column(String(20))
+    cree_le = Column(DateTime(timezone=True), server_default=func.now())
+
+    rubrique = relationship("Rubrique", lazy="joined")
+
+
+class LotAugmentation(Base):
+    """Augmentation de salaire appliquée en masse (traçabilité et annulation du lot)."""
+    __tablename__ = "augmentations_lots"
+
+    id = Column(Integer, primary_key=True)
+    libelle = Column(String(150), nullable=False)
+    date_effet = Column(Date, nullable=False)
+    mode = Column(String(12), nullable=False)
+    valeur = Column(Numeric(14, 2), nullable=False)
+    cible = Column(String(12), nullable=False, default="salaire")
+    filtres = Column(JSONB)
+    nb_salaries = Column(Integer, nullable=False, default=0)
+    total_mensuel = Column(Numeric(16, 2), nullable=False, default=0)
+    statut = Column(String(10), nullable=False, default="applique")
+    cree_par = Column(String(20))
+    cree_le = Column(DateTime(timezone=True), server_default=func.now())
+    annule_par = Column(String(20))
+    annule_le = Column(DateTime(timezone=True))
 
 
 class JourFerie(Base):
@@ -342,6 +413,12 @@ class Pret(Base):
     statut = Column(String(10), nullable=False, default="actif")
     cree_par = Column(String(20))
     cree_le = Column(DateTime(timezone=True), server_default=func.now())
+    # Clôture anticipée (départ surprise, démission, décès…) : motif, issue (régularisé ou passé en perte) et auteur.
+    date_cloture = Column(Date)
+    motif_cloture = Column(String(20))
+    issue_cloture = Column(String(15))
+    commentaire_cloture = Column(String(300))
+    cloture_par = Column(String(20))
 
     salarie = relationship("Salarie", lazy="joined")
     echeances = relationship("EcheancePret", order_by="EcheancePret.annee, EcheancePret.mois", cascade="all, delete-orphan")
@@ -355,8 +432,13 @@ class EcheancePret(Base):
     annee = Column(Integer, nullable=False)
     mois = Column(Integer, nullable=False)
     montant = Column(Numeric(14, 2), nullable=False)
-    statut = Column(String(10), nullable=False, default="prevue")
+    statut = Column(String(12), nullable=False, default="prevue")
     campagne_id = Column(Integer, ForeignKey("campagnes.id", ondelete="SET NULL"))
+    # Règlement hors paie (espèces, chèque, virement…) saisi à la main.
+    date_reglement = Column(Date)
+    mode_reglement = Column(String(15))
+    regle_par = Column(String(20))
+    commentaire = Column(String(200))
 
     pret = relationship("Pret", viewonly=True)
 
@@ -409,3 +491,77 @@ class Notification(Base):
     cree_par = Column(String(20))
     cree_le = Column(DateTime(timezone=True), server_default=func.now())
     envoye_le = Column(DateTime(timezone=True))
+
+
+class MesureDisciplinaire(Base):
+    __tablename__ = "mesures_disciplinaires"
+
+    id = Column(Integer, primary_key=True)
+    reference = Column(String(20))
+    salarie_id = Column(Integer, ForeignKey("salaries.id"), nullable=False)
+    type_mesure = Column(String(15), nullable=False)
+    date_faits = Column(Date)
+    date_decision = Column(Date, nullable=False)
+    motif = Column(Text, nullable=False)
+    debut_mise_a_pied = Column(Date)
+    fin_mise_a_pied = Column(Date)
+    statut = Column(String(10), nullable=False, default="active")
+    cree_par = Column(String(20))
+    cree_le = Column(DateTime(timezone=True), server_default=func.now())
+    annule_par = Column(String(20))
+    annule_le = Column(DateTime(timezone=True))
+    motif_annulation = Column(String(200))
+
+    salarie = relationship("Salarie", lazy="joined")
+
+
+class NoteService(Base):
+    __tablename__ = "notes_service"
+
+    id = Column(Integer, primary_key=True)
+    reference = Column(String(20))
+    objet = Column(String(150), nullable=False)
+    contenu = Column(Text, nullable=False)
+    date_effet = Column(Date, nullable=False)
+    service_id = Column(Integer, ForeignKey("referentiels.id"))
+    statut = Column(String(10), nullable=False, default="active")
+    cree_par = Column(String(20))
+    cree_le = Column(DateTime(timezone=True), server_default=func.now())
+
+    service = relationship("Referentiel", lazy="joined")
+
+
+class Exercice(Base):
+    """Année de paie clôturée : verrouille les écritures datées de l'année et fige les cumuls par salarié."""
+    __tablename__ = "exercices"
+
+    annee = Column(Integer, primary_key=True)
+    statut = Column(String(10), nullable=False, default="cloture")
+    cloture_le = Column(DateTime(timezone=True))
+    cloture_par = Column(String(20))
+    instantane = Column(JSONB)
+    rouvert_le = Column(DateTime(timezone=True))
+    rouvert_par = Column(String(20))
+    motif_reouverture = Column(String(300))
+
+
+class GrilleTranche(Base):
+    __tablename__ = "grille_tranches"
+
+    numero = Column(Integer, primary_key=True)
+    libelle = Column(String(60), nullable=False)
+    heures = Column(Numeric(10, 4), nullable=False)
+    coefficient = Column(Numeric(8, 4), nullable=False, default=1)
+    modifie_par = Column(String(20))
+    modifie_le = Column(DateTime(timezone=True))
+
+
+class GrilleCategorie(Base):
+    __tablename__ = "grille_categories"
+
+    id = Column(Integer, primary_key=True)
+    categorie_id = Column(Integer, ForeignKey("referentiels.id"), nullable=False)
+    date_effet = Column(Date, nullable=False)
+    base_horaire = Column(Numeric(12, 4), nullable=False)
+    cree_par = Column(String(20))
+    cree_le = Column(DateTime(timezone=True), server_default=func.now())

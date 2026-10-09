@@ -1,4 +1,6 @@
+import re
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -26,6 +28,33 @@ def utilisateur_vers_sortie(user: models.Utilisateur) -> schemas.UtilisateurOut:
     )
 
 
+# Canal « mobile » : lecture seule. Seules exceptions : changer SON mot de passe et gérer SES demandes de congé.
+ECRITURES_MOBILE_AUTORISEES = (
+    ("POST", "/auth/mot-de-passe"),
+    ("POST", "/moi/conges"),
+    ("DELETE", "/moi/conges/"),
+)
+MOBILE_UA = re.compile(r"Mobi|Android|iPhone|iPad|iPod", re.I)
+
+
+def canal_de_connexion(request: Request, declare: Optional[str]) -> str:
+    """« mobile » si l'interface le déclare OU si le navigateur est un mobile : un client ne peut pas se
+    déclarer « pc » depuis un téléphone pour contourner la lecture seule."""
+    return "mobile" if declare == "mobile" or MOBILE_UA.search(request.headers.get("User-Agent", "")) else "pc"
+
+
+def _refuser_si_mobile(request: Request) -> None:
+    chemin = request.url.path
+    if chemin.startswith("/admin"):
+        raise HTTPException(status_code=403, detail="L'administration n'est pas accessible depuis un téléphone. Utilisez un ordinateur.")
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return
+    for methode, prefixe in ECRITURES_MOBILE_AUTORISEES:
+        if request.method == methode and (chemin == prefixe or (prefixe.endswith("/") and chemin.startswith(prefixe))):
+            return
+    raise HTTPException(status_code=403, detail="Lecture seule depuis un téléphone : cette action n'est possible que sur ordinateur.")
+
+
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> models.Utilisateur:
     """Jeton signé (Authorization: Bearer ...) vérifié à CHAQUE requête : signature, expiration,
     compte existant et actif, mot de passe inchangé depuis l'émission du jeton."""
@@ -41,6 +70,10 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> models.
         raise non_authentifie
     if payload.get("pwd") != tokens.empreinte_mot_de_passe(user.mot_de_passe_hash):
         raise non_authentifie  # mot de passe changé depuis l'émission du jeton : session révoquée
+
+    request.state.canal = "mobile" if payload.get("can") == "m" else "pc"
+    if request.state.canal == "mobile":
+        _refuser_si_mobile(request)
 
     if user.doit_changer_mot_de_passe and request.url.path.rstrip("/") not in CHEMINS_CHANGEMENT_MDP:
         raise HTTPException(status_code=403, detail="Vous devez d'abord changer votre mot de passe.")
@@ -96,7 +129,7 @@ def login(body: schemas.ConnexionIn, request: Request, db: Session = Depends(get
     user.derniere_connexion = datetime.now(timezone.utc)
     audit.enregistrer(db, "connexion", acteur=user, request=request)
     db.commit()
-    jeton, expire = tokens.creer_jeton(user.id, user.mot_de_passe_hash)
+    jeton, expire = tokens.creer_jeton(user.id, user.mot_de_passe_hash, canal=canal_de_connexion(request, body.canal))
     return schemas.SessionOut(access_token=jeton, expires_at=expire, user=utilisateur_vers_sortie(user))
 
 
@@ -128,7 +161,7 @@ def changer_mot_de_passe(
     audit.enregistrer(db, "mot_de_passe_change", acteur=current_user, request=request)
     db.commit()
     # L'empreinte du jeton a changé : toutes les anciennes sessions sont révoquées, on en rend une neuve.
-    jeton, expire = tokens.creer_jeton(current_user.id, current_user.mot_de_passe_hash)
+    jeton, expire = tokens.creer_jeton(current_user.id, current_user.mot_de_passe_hash, canal=getattr(request.state, "canal", "pc"))
     return schemas.SessionOut(access_token=jeton, expires_at=expire, user=utilisateur_vers_sortie(current_user))
 
 

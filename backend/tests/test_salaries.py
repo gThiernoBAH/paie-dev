@@ -192,3 +192,18 @@ def test_sursalaire_et_transport(client, admin):
     assert s["indemnite_transport"] == 38102
     r = client.post(f"/salaries/{s['id']}/salaires", headers=admin, json={"date_effet": "2026-01-01", "montant": 140000, "sursalaire": 70000})
     assert r.json()[0]["sursalaire"] == 70000
+
+
+def test_liste_triee_par_colonne(client, db):
+    from tests.conftest import creer_compte, connexion
+    from app.core import models
+    creer_compte(db, "admin", "admin")
+    for mat, nom in (("000301", "ZORO"), ("000302", "ABBA"), ("000303", "MIAN")):
+        db.add(models.Salarie(matricule=mat, nom=nom))
+    db.commit()
+    h = connexion(client)
+    noms = lambda r: [e["nom"] for e in r.json()["elements"]]
+    assert noms(client.get("/salaries?tri=nom&sens=asc", headers=h)) == ["ABBA", "MIAN", "ZORO"]
+    assert noms(client.get("/salaries?tri=nom&sens=desc", headers=h)) == ["ZORO", "MIAN", "ABBA"]
+    assert client.get("/salaries?tri=service&sens=desc", headers=h).status_code == 200
+    assert client.get("/salaries?tri=n_importe_quoi", headers=h).status_code == 422

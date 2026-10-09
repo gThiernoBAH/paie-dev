@@ -3,7 +3,7 @@ from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import or_
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,10 @@ from ..core import auth, crypto, models, schemas
 from ..core.database import get_db
 from ..core.permissions import PERMISSIONS_PAR_DEFAUT
 from ..services import audit
+from ..services import exercices as svc_ex
+from ..services import grille as svc_grille
+from ..services import parametres as param
+from ..services import mutations as svc_mut
 from ..services import salaries as svc
 from .auth_routes import a_la_permission, require_permission, utilisateur_vers_sortie
 
@@ -44,7 +48,7 @@ def _fiche(s: models.Salarie, sensible: bool) -> dict:
         "telephone": s.telephone, "email": s.email, "adresse": s.adresse, "ville": s.ville,
         "date_embauche": s.date_embauche, "date_sortie": s.date_sortie, "motif_sortie": s.motif_sortie,
         "type_contrat": _ref(s.type_contrat), "service": _ref(s.service), "section": _ref(s.section),
-        "emploi": _ref(s.emploi), "categorie": _ref(s.categorie), "site": _ref(s.site), "banque": _ref(s.banque),
+        "emploi": _ref(s.emploi), "categorie": _ref(s.categorie), "tranche": s.tranche, "site": _ref(s.site), "banque": _ref(s.banque),
         "type_remuneration": s.type_remuneration, "eligible_heures_sup": s.eligible_heures_sup,
         "mode_paiement": s.mode_paiement, "est_actif": s.est_actif,
         "a_un_rib": bool(s.rib_chiffre), "a_un_numero_cnps": bool(s.numero_cnps_chiffre),
@@ -96,6 +100,8 @@ def lister(
     service_id: Optional[int] = None,
     type_remuneration: Optional[str] = Query(default=None, pattern=r"^(mensuel|journalier)$"),
     statut: str = Query(default="actifs", pattern=r"^(actifs|sortis|tous)$"),
+    tri: str = Query(default="matricule", pattern=r"^(matricule|nom|service|emploi|type_remuneration|date_embauche|est_actif)$"),
+    sens: str = Query(default="asc", pattern=r"^(asc|desc)$"),
     page: int = Query(default=1, ge=1), taille: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
     _: models.Utilisateur = Depends(require_permission("voir_salaries")),
@@ -114,7 +120,13 @@ def lister(
     if statut != "tous":
         requete = requete.filter(models.Salarie.est_actif.is_(statut == "actifs"))
     total = requete.count()
-    lignes = requete.order_by(models.Salarie.matricule).offset((page - 1) * taille).limit(taille).all()
+    if tri in ("service", "emploi"):   # tri sur le libellé du référentiel, pas sur son identifiant
+        colonne_ref = models.Salarie.service_id if tri == "service" else models.Salarie.emploi_id
+        cle = select(models.Referentiel.libelle).where(models.Referentiel.id == colonne_ref).scalar_subquery()
+    else:
+        cle = getattr(models.Salarie, tri)
+    ordre = cle.desc().nulls_last() if sens == "desc" else cle.asc().nulls_last()
+    lignes = requete.order_by(ordre, models.Salarie.matricule).offset((page - 1) * taille).limit(taille).all()
     return {"total": total, "page": page, "taille": taille, "elements": lignes}
 
 
@@ -124,7 +136,7 @@ def creer(
     acteur: models.Utilisateur = Depends(require_permission("modifier_salaries")),
 ):
     sensible = a_la_permission(acteur, "voir_donnees_sensibles")
-    donnees = _nettoyer(corps.model_dump(exclude_unset=True, exclude={"matricule", "salaire_base", "sursalaire", "rib", "numero_cnps"}))
+    donnees = _nettoyer(corps.model_dump(exclude_unset=True, exclude={"matricule", "salaire_base", "sursalaire", "rib", "numero_cnps", "date_effet_mutation", "motif_mutation"}))
     if (corps.rib or corps.numero_cnps or corps.salaire_base is not None or corps.sursalaire) and not sensible:
         raise HTTPException(status_code=403, detail="Le RIB, le n° CNPS et le salaire exigent le droit « données sensibles ».")
     _verifier_liens(db, donnees)
@@ -174,13 +186,16 @@ def modifier(
     if ("rib" in envoyes or "numero_cnps" in envoyes) and not sensible:
         raise HTTPException(status_code=403, detail="Le RIB et le n° CNPS exigent le droit « données sensibles ».")
     rib, cnps = envoyes.pop("rib", None), envoyes.pop("numero_cnps", None)
+    date_mutation, motif_mutation = envoyes.pop("date_effet_mutation", None), envoyes.pop("motif_mutation", None)
     a_rib, a_cnps = "rib" in corps.model_fields_set, "numero_cnps" in corps.model_fields_set
     donnees = _nettoyer(envoyes)
     if "nom" in donnees and not donnees["nom"]:
         raise HTTPException(status_code=422, detail="Le nom est obligatoire.")
     _verifier_liens(db, {k: v for k, v in donnees.items() if k in LIENS and v != getattr(s, k)})
+    avant_mutation = svc_mut.instantane(db, s)
     for champ, valeur in donnees.items():
         setattr(s, champ, valeur)
+    mutations = svc_mut.enregistrer_changements(db, s, avant_mutation, date_mutation, motif_mutation, acteur)
     if ("situation_matrimoniale" in donnees or "nombre_enfants" in donnees) and "nombre_parts" not in donnees:
         s.nombre_parts = svc.parts_suggerees(s.situation_matrimoniale, s.nombre_enfants)
     champs = sorted(donnees)
@@ -196,10 +211,18 @@ def modifier(
     s.modifie_le = func.now()
     # Le journal garde le NOM des champs modifiés, jamais leur valeur (données personnelles).
     audit.enregistrer(db, "salarie_modifie", acteur=acteur, cible_type="salarie", cible_id=s.id,
-                      detail={"matricule": s.matricule, "champs": sorted(champs)}, request=request)
+                      detail={"matricule": s.matricule, "champs": sorted(champs), "mutations": mutations}, request=request)
     db.commit()
     db.refresh(s)
     return _fiche(s, sensible)
+
+
+@router.get("/{salarie_id}/historique")
+def historique(salarie_id: int, db: Session = Depends(get_db),
+               acteur: models.Utilisateur = Depends(require_permission("voir_salaries"))):
+    """Mutations (service, section, emploi, catégorie, site, contrat) et, avec le droit « données sensibles », salaire."""
+    s = _charger(db, salarie_id)
+    return svc_mut.historique(db, s, a_la_permission(acteur, "voir_donnees_sensibles"))
 
 
 @router.get("/{salarie_id}/donnees-sensibles")
@@ -229,6 +252,17 @@ def ajouter_salaire(
     if not acteur_peut_modifier(acteur):
         raise HTTPException(status_code=403, detail="Permission manquante : modifier_salaries")
     s = _charger(db, salarie_id)
+    interdit = svc_ex.message_si_cloture(db, corps.date_effet)
+    if interdit:
+        raise HTTPException(status_code=409, detail=interdit)
+    try:
+        bloquant = param.lire(db, "grille_blocage_sous_minimum", corps.date_effet)
+    except param.ParametreIntrouvable:
+        bloquant = False
+    if bloquant:
+        sit = svc_grille.situation(db, s, corps.date_effet, montant=corps.montant)
+        if sit["statut"] == "sous_grille":
+            raise HTTPException(status_code=422, detail=f"Salaire inférieur à la grille ({sit['salaire_grille']:,.0f} F pour la tranche {s.tranche}).".replace(",", " "))
     if any(e.date_effet == corps.date_effet for e in s.evolutions):
         raise HTTPException(status_code=409, detail="Un salaire existe déjà à cette date : choisissez une autre date d'effet.")
     s.evolutions.append(models.EvolutionSalaire(
@@ -276,6 +310,15 @@ def reactiver(
     db.commit()
     db.refresh(s)
     return _fiche(s, a_la_permission(acteur, "voir_donnees_sensibles"))
+
+
+@router.get("/{salarie_id}/acces")
+def acces(salarie_id: int, db: Session = Depends(get_db), _=Depends(require_permission("gerer_utilisateurs"))):
+    """Le salarié a-t-il déjà un accès « espace salarié » ? (évite de proposer une création vouée au conflit)"""
+    s = _charger(db, salarie_id)
+    u = db.query(models.Utilisateur).filter_by(identifiant=s.matricule, role="salarie").first()
+    return {"existe": u is not None, "utilisateur_id": u.id if u else None, "est_actif": bool(u and u.est_actif),
+            "identifiant": s.matricule}
 
 
 @router.post("/{salarie_id}/creer-compte", status_code=201)

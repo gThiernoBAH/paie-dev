@@ -15,6 +15,8 @@ from ..core.database import get_db
 from ..exports import bulletin_pdf
 from ..services import audit
 from ..services import bulletins as svc
+from ..services import discipline as svc_discipline
+from ..services import exercices as svc_ex
 from ..services import salaries as svc_salaries
 from .auth_routes import require_any_permission, require_permission
 
@@ -141,6 +143,9 @@ def lister_campagnes(annee: Optional[int] = None, db: Session = Depends(get_db),
 @router.post("/campagnes", status_code=201)
 def creer_campagne(corps: CampagneIn, request: Request, db: Session = Depends(get_db),
                    acteur: models.Utilisateur = Depends(require_permission("lancer_paie"))):
+    interdit = svc_ex.message_si_cloture(db, corps.annee)
+    if interdit:
+        raise HTTPException(status_code=409, detail=interdit)
     if corps.type_campagne == "mensuelle":
         debut, fin = date(corps.annee, corps.mois, 1), date(corps.annee, corps.mois, calendar.monthrange(corps.annee, corps.mois)[1])
         nature = "mensuel"
@@ -200,10 +205,14 @@ def initialiser(campagne_id: int, request: Request, db: Session = Depends(get_db
 # ----------------------------------------------------------------- présences
 @router.get("/campagnes/{campagne_id}/presences")
 def lister_presences(campagne_id: int, db: Session = Depends(get_db), _=Depends(LIRE)):
-    _camp(db, campagne_id)
+    c = _camp(db, campagne_id)
     lignes = db.query(models.PresencePeriode).join(models.Salarie).filter(models.PresencePeriode.campagne_id == campagne_id)\
         .order_by(models.Salarie.matricule).all()
-    return [_presence_sortie(p) for p in lignes]
+    map_ = svc_discipline.mises_a_pied_du_mois(db, c)
+    sortie = [_presence_sortie(p) for p in lignes]
+    for d in sortie:
+        d["jours_mise_a_pied"] = map_.get(d["salarie_id"], 0)     # information : déjà ajoutés aux absences au calcul
+    return sortie
 
 
 @router.post("/campagnes/{campagne_id}/salaries")
@@ -397,6 +406,9 @@ def rouvrir(campagne_id: int, corps: MotifIn, request: Request, db: Session = De
     if acteur.role != "admin":
         raise HTTPException(status_code=403, detail="Seul un administrateur peut rouvrir une campagne validée.")
     c = _camp(db, campagne_id)
+    interdit = svc_ex.message_si_cloture(db, c.annee)
+    if interdit:
+        raise HTTPException(status_code=409, detail=interdit)
     try:
         svc.rouvrir(db, c)
     except svc.ErreurPaie as e:

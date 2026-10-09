@@ -1,9 +1,15 @@
 <script setup>
+import DataTable from '@/components/DataTable.vue'
+import { useEcran } from '@/composables/useEcran'
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import apiClient, { messageErreur } from '@/api/client'
 import { lireUtilisateur, aLaPermission } from '@/api/session'
-import { ArrowLeft, Eye, KeyRound, LogOut } from 'lucide-vue-next'
+import { ArrowLeft, Eye, KeyRound, LogOut, UserCheck } from 'lucide-vue-next'
+import SalarieFamille from './SalarieFamille.vue'
+import SalarieRubriquesFixes from './SalarieRubriquesFixes.vue'
+import SalarieHistorique from './SalarieHistorique.vue'
+import { useConfirm } from '@/composables/useConfirm'
 
 const route = useRoute()
 const router = useRouter()
@@ -31,12 +37,26 @@ const compteCree = ref(null)
 const sortie = ref({ date_sortie: new Date().toISOString().slice(0, 10), motif_sortie: '' })
 const afficherSortie = ref(false)
 const partsSuggerees = ref(null)
+const { confirm } = useConfirm()
+const onglet = ref('fiche')
+const ONGLETS = computed(() => [
+  { cle: 'fiche', libelle: 'Fiche' },
+  { cle: 'famille', libelle: 'Personnes à charge' },
+  ...(peutSensible ? [{ cle: 'fixes', libelle: 'Rubriques fixes' }] : []),
+  { cle: 'historique', libelle: 'Historique et dossier' },
+])
+const grille = ref(null)           // position par rapport à la grille salariale
+const acces = ref(null)            // { existe, utilisateur_id, est_actif } : le salarié a-t-il déjà un accès espace salarié ?
+const mutation = ref({ date: new Date().toLocaleDateString('sv-SE'), motif: '' })
+const SUIVIS = ['service_id', 'section_id', 'emploi_id', 'categorie_id', 'site_id', 'type_contrat_id', 'type_remuneration']
+const affectationModifiee = computed(() => !nouveau && SUIVIS.some((k) => (f.value[k] ?? '') !== (origine.value[k] ?? '')))
 
-const CHAMPS = ['nom', 'prenoms', 'sexe', 'date_naissance', 'lieu_naissance', 'nationalite', 'situation_matrimoniale',
+const CHAMPS = ['tranche', 'nom', 'prenoms', 'sexe', 'date_naissance', 'lieu_naissance', 'nationalite', 'situation_matrimoniale',
   'nombre_enfants', 'nombre_parts', 'nombre_personnes_cmu', 'indemnite_transport', 'telephone', 'email', 'adresse', 'ville', 'date_embauche',
   'type_remuneration', 'eligible_heures_sup', 'mode_paiement']
 const LIENS = ['type_contrat', 'service', 'section', 'emploi', 'categorie', 'site', 'banque']
-const lectureSeule = computed(() => !peutModifier || (fiche.value && !fiche.value.est_actif))
+const { mobile: surTelephone } = useEcran()
+const lectureSeule = computed(() => !peutModifier || surTelephone.value || (fiche.value && !fiche.value.est_actif))
 
 function versFormulaire(d) {
   const o = {}
@@ -57,7 +77,18 @@ async function charger() {
     const { data } = await apiClient.get(`/salaries/${route.params.id}`)
     appliquer(data)
     if (peutSensible) historique.value = (await apiClient.get(`/salaries/${route.params.id}/salaires`)).data
+    await chargerAcces()
+    await chargerGrille()
   } catch (e) { erreur.value = messageErreur(e) }
+}
+async function rafraichir() { try { appliquer((await apiClient.get(`/salaries/${route.params.id}`)).data) } catch (e) { erreur.value = messageErreur(e) } }
+async function chargerGrille() {
+  if (!peutSensible || nouveau) return
+  try { grille.value = (await apiClient.get(`/salaries/${route.params.id}/grille`)).data } catch { grille.value = null }
+}
+async function chargerAcces() {
+  if (!peutComptes) return
+  try { acces.value = (await apiClient.get(`/salaries/${route.params.id}/acces`)).data } catch { acces.value = null }
 }
 function appliquer(d) {
   fiche.value = d; f.value = versFormulaire(d); origine.value = { ...f.value }
@@ -86,6 +117,7 @@ async function enregistrer() {
   try {
     const c = corps()
     // RIB / CNPS : envoyés seulement s'ils ont été saisis ou modifiés (vider un champ affiché l'efface).
+    if (affectationModifiee.value) { c.date_effet_mutation = mutation.value.date || null; c.motif_mutation = mutation.value.motif.trim() || null }
     if (rib.value.trim() !== ribOrigine) c.rib = rib.value.trim() || null
     if (cnps.value.trim() !== cnpsOrigine) c.numero_cnps = cnps.value.trim() || null
     if (nouveau) {
@@ -98,6 +130,8 @@ async function enregistrer() {
     if (!Object.keys(c).length) { message.value = 'Aucune modification.'; return }
     const { data } = await apiClient.patch(`/salaries/${fiche.value.id}`, c)
     appliquer(data); rib.value = ''; cnps.value = ''; ribOrigine = ''; cnpsOrigine = ''; sensibleCharge.value = false
+    mutation.value.motif = ''
+    await chargerGrille()
     message.value = 'Fiche enregistrée.'
   } catch (e) { erreur.value = messageErreur(e) } finally { enCours.value = false }
 }
@@ -117,12 +151,22 @@ async function ajouterEvolution() {
     historique.value = data
     nouvelleEvolution.value.montant = ''; nouvelleEvolution.value.sursalaire = ''; nouvelleEvolution.value.motif = ''
     appliquer((await apiClient.get(`/salaries/${fiche.value.id}`)).data)
+    await chargerGrille()
   } catch (err) { erreur.value = messageErreur(err) }
 }
 async function creerCompte() {
   erreur.value = ''
   try {
     const { data } = await apiClient.post(`/salaries/${fiche.value.id}/creer-compte`)
+    compteCree.value = data.mot_de_passe_temporaire
+    await chargerAcces()
+  } catch (e) { erreur.value = messageErreur(e) }
+}
+async function reinitialiserAcces() {
+  if (!(await confirm({ title: 'Réinitialiser le mot de passe', message: `Un nouveau mot de passe temporaire sera généré pour ${fiche.value.matricule} et ses sessions en cours seront coupées.`, confirmLabel: 'Réinitialiser' }))) return
+  erreur.value = ''
+  try {
+    const { data } = await apiClient.post(`/admin/utilisateurs/${acces.value.utilisateur_id}/reinitialiser-mot-de-passe`)
     compteCree.value = data.mot_de_passe_temporaire
   } catch (e) { erreur.value = messageErreur(e) }
 }
@@ -135,6 +179,13 @@ async function reactiver() {
 }
 const montant = (n) => Number(n).toLocaleString('fr-FR')
 const dateFr = (d) => new Date(d + 'T00:00:00').toLocaleDateString('fr-FR')
+const colonnesHisto = [
+  { cle: 'date_effet', libelle: 'À partir du', tri: true, format: (v) => dateFr(v) },
+  { cle: 'montant', libelle: 'Catégoriel', tri: true, align: 'droite', format: (v) => `${montant(v)} F` },
+  { cle: 'sursalaire', libelle: 'Sursalaire', tri: true, align: 'droite', format: (v) => `${montant(v)} F` },
+  { cle: 'motif', libelle: 'Motif', tri: true },
+  { cle: 'cree_par', libelle: 'Saisi par', tri: true },
+]
 onMounted(charger)
 </script>
 
@@ -153,7 +204,14 @@ onMounted(charger)
     <p v-if="message" class="bandeau ok" role="status">{{ message }}</p>
     <p v-if="erreur" class="message-erreur" role="alert">{{ erreur }}</p>
 
-    <form class="grille" @submit.prevent="enregistrer">
+    <div v-if="!nouveau" class="onglets" role="tablist">
+      <button v-for="o in ONGLETS" :key="o.cle" type="button" role="tab" :aria-selected="onglet === o.cle" :class="['onglet', { actif: onglet === o.cle }]" @click="onglet = o.cle">{{ o.libelle }}</button>
+    </div>
+    <SalarieFamille v-if="!nouveau && onglet === 'famille'" :salarie-id="route.params.id" :peut-modifier="peutModifier && fiche?.est_actif && !surTelephone" @change="rafraichir" />
+    <SalarieRubriquesFixes v-if="!nouveau && onglet === 'fixes' && peutSensible" :salarie-id="route.params.id" :peut-modifier="peutModifier && fiche?.est_actif && !surTelephone" />
+    <SalarieHistorique v-if="!nouveau && onglet === 'historique'" :key="fiche?.id" :salarie-id="route.params.id" />
+
+    <form v-show="nouveau || onglet === 'fiche'" class="grille" @submit.prevent="enregistrer">
       <fieldset class="card bloc" :disabled="lectureSeule"><legend>Identité</legend>
         <label v-if="nouveau" class="field"><span class="field-label">Matricule (facultatif)</span><input v-model="f.matricule" class="input" inputmode="numeric" maxlength="6" placeholder="Automatique" /></label>
         <label class="field"><span class="field-label">Nom</span><input v-model="f.nom" class="input" required /></label>
@@ -188,6 +246,7 @@ onMounted(charger)
         <label class="field"><span class="field-label">Section</span><select v-model="f.section_id" class="input"><option value="">—</option><option v-for="r in refs.section" :key="r.id" :value="r.id">{{ r.libelle }}</option></select></label>
         <label class="field"><span class="field-label">Emploi</span><select v-model="f.emploi_id" class="input"><option value="">—</option><option v-for="r in refs.emploi" :key="r.id" :value="r.id">{{ r.libelle }}</option></select></label>
         <label class="field"><span class="field-label">Catégorie</span><select v-model="f.categorie_id" class="input"><option value="">—</option><option v-for="r in refs.categorie" :key="r.id" :value="r.id">{{ r.libelle }}</option></select></label>
+        <label class="field"><span class="field-label">Tranche horaire (grille)</span><select v-model.number="f.tranche" class="input" data-hint="Régime d'heures servant à lire le salaire de la grille salariale"><option value="">—</option><option v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="n">Tranche {{ n }}</option></select></label>
         <label class="field"><span class="field-label">Site</span><select v-model="f.site_id" class="input"><option value="">—</option><option v-for="r in refs.site" :key="r.id" :value="r.id">{{ r.libelle }}</option></select></label>
       </fieldset>
 
@@ -211,21 +270,29 @@ onMounted(charger)
         <p v-else class="aide">RIB, n° CNPS et salaire : visibles uniquement avec le droit « données sensibles ».</p>
       </fieldset>
 
+      <div v-if="affectationModifiee && !lectureSeule" class="card bloc large mutation">
+        <h2>Mutation</h2>
+        <p class="aide">L'affectation (service, section, emploi, catégorie, site, contrat) change : indiquez à partir de quand. Le changement apparaîtra dans l'historique du salarié.</p>
+        <div class="ligne-evol">
+          <input v-model="mutation.date" class="input" type="date" required aria-label="Date d'effet de la mutation" data-hint="Date d'effet de la mutation" />
+          <input v-model="mutation.motif" class="input" placeholder="Motif (facultatif) : promotion, réorganisation…" aria-label="Motif de la mutation" />
+        </div>
+      </div>
       <div class="barre-actions" v-if="!lectureSeule">
         <button type="button" class="vbtn vbtn-secondary" @click="router.push('/salaries')">Retour</button>
         <button type="submit" class="vbtn vbtn-primary" :disabled="enCours">{{ enCours ? 'Enregistrement…' : nouveau ? 'Créer le salarié' : 'Enregistrer' }}</button>
       </div>
     </form>
 
-    <section v-if="!nouveau && peutSensible" class="card bloc large">
+    <section v-if="!nouveau && peutSensible && onglet === 'fiche'" class="card bloc large">
       <h2>Salaire</h2>
       <p v-if="fiche?.salaire_actuel" class="actuel">{{ montant(fiche.salaire_actuel.montant) }} F <small>catégoriel{{ fiche.salaire_actuel.sursalaire ? ` + ${montant(fiche.salaire_actuel.sursalaire)} F de sursalaire` : '' }} (par mois, depuis le {{ dateFr(fiche.salaire_actuel.date_effet) }})</small></p>
       <p v-else class="aide">Aucun salaire en vigueur.</p>
-      <table v-if="historique.length" class="histo">
-        <thead><tr><th>À partir du</th><th class="num">Catégoriel</th><th class="num">Sursalaire</th><th>Motif</th><th>Saisi par</th></tr></thead>
-        <tbody><tr v-for="e in historique" :key="e.id"><td>{{ dateFr(e.date_effet) }}</td><td class="num">{{ montant(e.montant) }} F</td><td class="num">{{ montant(e.sursalaire) }} F</td><td>{{ e.motif || '' }}</td><td>{{ e.cree_par }}</td></tr></tbody>
-      </table>
-      <form v-if="peutModifier && fiche?.est_actif" class="ligne-evol" @submit.prevent="ajouterEvolution">
+      <p v-if="grille && grille.statut === 'sous_grille'" class="alerte-grille" role="status">Salaire catégoriel inférieur à la grille : {{ montant(Math.round(grille.salaire_grille)) }} F attendus pour la tranche {{ grille.tranche }} (écart {{ montant(Math.round(grille.ecart)) }} F).</p>
+      <p v-else-if="grille && grille.statut === 'au_dessus'" class="aide">Au-dessus de la grille ({{ montant(Math.round(grille.salaire_grille)) }} F pour la tranche {{ grille.tranche }}).</p>
+      <p v-else-if="grille && grille.statut === 'conforme'" class="aide">Conforme à la grille (tranche {{ grille.tranche }}).</p>
+      <DataTable v-if="historique.length" :colonnes="colonnesHisto" :lignes="historique" :recherche="false" :taille-page="10" tri-initial="date_effet" sens-initial="desc" vide="Aucune évolution." />
+      <form v-if="peutModifier && fiche?.est_actif" class="ligne-evol ecriture" @submit.prevent="ajouterEvolution">
         <input v-model="nouvelleEvolution.date_effet" class="input" type="date" required aria-label="Date d'effet" />
         <input v-model="nouvelleEvolution.montant" class="input" inputmode="decimal" placeholder="Salaire catégoriel" required aria-label="Nouveau salaire catégoriel" />
         <input v-model="nouvelleEvolution.sursalaire" class="input" inputmode="decimal" placeholder="Sursalaire" aria-label="Nouveau sursalaire" />
@@ -234,11 +301,13 @@ onMounted(charger)
       </form>
     </section>
 
-    <section v-if="!nouveau && fiche && (peutComptes || peutModifier)" class="card bloc large">
+    <section v-if="!nouveau && fiche && onglet === 'fiche' && (peutComptes || peutModifier)" class="card bloc large">
       <h2>Accès et départ</h2>
-      <div v-if="compteCree" class="mdp-bloc" role="status">Compte créé. Mot de passe temporaire (affiché une seule fois) : <code>{{ compteCree }}</code></div>
-      <div class="actions-ligne">
-        <button v-if="peutComptes && fiche.est_actif && !compteCree" class="vbtn vbtn-secondary" @click="creerCompte"><KeyRound :size="16" />Ouvrir l'accès espace salarié</button>
+      <div v-if="compteCree" class="mdp-bloc" role="status">Mot de passe temporaire (affiché une seule fois) : <code>{{ compteCree }}</code></div>
+      <div class="actions-ligne ecriture">
+        <span v-if="peutComptes && acces?.existe" class="badge badge-ok" data-hint="Le salarié peut se connecter à son espace (bulletins, congés, profil) avec son matricule"><UserCheck :size="14" /> Accès espace salarié ouvert{{ acces.est_actif ? '' : ' (désactivé)' }}</span>
+        <button v-if="peutComptes && acces?.existe && acces.est_actif" class="vbtn vbtn-secondary" data-hint="Réinitialiser le mot de passe : générer un nouveau mot de passe temporaire pour son espace salarié" @click="reinitialiserAcces"><KeyRound :size="16" />Réinitialiser</button>
+        <button v-if="peutComptes && fiche.est_actif && acces && !acces.existe && !compteCree" class="vbtn vbtn-secondary" data-hint="Crée le compte de connexion du salarié (identifiant = matricule, mot de passe temporaire affiché une seule fois) pour qu'il consulte ses bulletins et ses congés" @click="creerCompte"><KeyRound :size="16" />Créer l'accès espace salarié</button>
         <button v-if="peutModifier && fiche.est_actif" class="vbtn vbtn-secondary" @click="afficherSortie = !afficherSortie"><LogOut :size="16" />Déclarer un départ</button>
         <button v-if="peutModifier && !fiche.est_actif" class="vbtn vbtn-secondary" @click="reactiver">Réactiver le salarié</button>
       </div>
@@ -273,6 +342,11 @@ legend { font-weight: 700; font-size: var(--font-size-base); padding: 0 8px; col
 .histo th { text-align: left; color: var(--color-text-muted); padding: 8px 10px; border-bottom: 1px solid var(--color-border); }
 .histo td { padding: 8px 10px; border-bottom: 1px solid var(--color-border); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
+.onglets { display: flex; gap: 4px; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
+.onglet { padding: 10px 16px; min-height: 44px; border: none; background: none; cursor: pointer; font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.onglet.actif { color: var(--color-brand-dark); border-bottom-color: var(--color-brand); }
+.alerte-grille { margin: 0; padding: 10px 14px; background: var(--color-orange-bg); color: var(--color-orange); border-radius: var(--radius-md); font-size: var(--font-size-sm); }
+.mutation { border-color: var(--color-brand); }
 .ligne-evol { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .ligne-evol .input { flex: 1; min-width: 150px; }
 .actions-ligne { display: flex; gap: var(--space-3); flex-wrap: wrap; }

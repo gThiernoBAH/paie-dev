@@ -35,7 +35,7 @@ onMounted(async () => {
       <div v-for="(p, i) in prets" :key="i" class="card bloc">
         <strong>{{ p.libelle }}</strong>
         <span>Montant {{ fmt(p.montant) }} FCFA · reste dû {{ fmt(p.reste) }} FCFA</span>
-        <small>{{ p.echeances.map((e) => `${MOIS[e.mois]} ${e.annee} : ${fmt(e.montant)}${e.statut === 'prelevee' ? ' ✓' : ''}`).join(' · ') }}</small>
+        <small>{{ p.echeances.map((e) => `${MOIS[e.mois]} ${e.annee} : ${fmt(e.montant)}${['prelevee', 'reglee'].includes(e.statut) ? ' ✓' : ''}`).join(' · ') }}</small>
       </div>
     </template>
   </div>

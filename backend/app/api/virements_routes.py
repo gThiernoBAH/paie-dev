@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..core import models
 from ..core.database import get_db
+from ..exports import lettres_pdf
 from ..services import audit, fichiers, messagerie
 from ..services import virements as svc
 from ..services.bulletins import ErreurPaie
@@ -110,3 +111,17 @@ def fichier(lot_id: int, request: Request, format: str = Query(default="xlsx", p
     contenu = fichiers.xlsx("Virements", entetes, lignes, {"Montant (FCFA)": lot.total}, lot.libelle) if format == "xlsx" else fichiers.csv_fr(entetes, lignes)
     return Response(content=contenu, media_type=fichiers.MEDIA[format],
                     headers={"Content-Disposition": f'attachment; filename="virements_{lot.id}.{format}"'})
+
+
+@router.get("/virements/{lot_id}/lettres.pdf")
+def lettres(lot_id: int, request: Request, db: Session = Depends(get_db), acteur: models.Utilisateur = Depends(GERER)):
+    """Lettres de virement aux banques (une page par banque). Les RIB sont en clair : accès tracé."""
+    lot = _lot(db, lot_id)
+    if lot.statut == "annule":
+        raise HTTPException(status_code=409, detail="Ce lot est annulé.")
+    c = db.get(models.Campagne, lot.campagne_id)
+    audit.enregistrer(db, "virement_lettres_exportees", acteur=acteur, cible_type="lot_virement", cible_id=lot.id,
+                      detail={"ordres": lot.nombre_ordres, "rib_en_clair": True}, request=request)
+    db.commit()
+    return Response(content=lettres_pdf.lettres_virement(db, lot, c, date.today()), media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="lettres_virement_{lot.id}.pdf"'})

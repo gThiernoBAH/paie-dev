@@ -149,12 +149,34 @@ class PretIn(BaseModel):
     mois_debut: int = Field(ge=1, le=12)
 
 
-def _pret_sortie(p: models.Pret, detail: bool = False) -> dict:
+class ReglementIn(BaseModel):
+    date_reglement: date
+    mode_reglement: str = Field(default="especes", pattern="^(especes|cheque|virement|autre)$")
+    commentaire: Optional[str] = Field(default=None, max_length=200)
+
+
+class ClotureIn(BaseModel):
+    motif: str = Field(pattern="^(depart|demission|deces|licenciement|autre)$")
+    issue: str = Field(pattern="^(regularise|abandon)$")
+    date_cloture: date
+    commentaire: Optional[str] = Field(default=None, max_length=300)
+
+
+def _pret_sortie(p: models.Pret, detail: bool = False, db: Optional[Session] = None) -> dict:
+    nb_reglees = sum(1 for e in p.echeances if e.statut in ("prelevee", "reglee"))
     d = {"id": p.id, "salarie_id": p.salarie_id, "matricule": p.salarie.matricule, "nom": _nom(p.salarie), "type_pret": p.type_pret,
          "libelle": p.libelle, "montant": p.montant, "nombre_echeances": p.nombre_echeances, "statut": p.statut,
-         "reste": svc_prets.reste_a_rembourser(p)}
+         "reste": svc_prets.reste_a_rembourser(p), "regle": svc_prets.montant_regle(p), "abandonne": svc_prets.montant_abandonne(p),
+         "echeances_reglees": nb_reglees, "motif_cloture": p.motif_cloture, "issue_cloture": p.issue_cloture,
+         "date_cloture": p.date_cloture, "commentaire_cloture": p.commentaire_cloture}
     if detail:
-        d["echeances"] = [{"id": e.id, "annee": e.annee, "mois": e.mois, "montant": e.montant, "statut": e.statut} for e in p.echeances]
+        libelles = {}
+        if db is not None:
+            ids = {e.campagne_id for e in p.echeances if e.campagne_id}
+            libelles = {c.id: c.libelle for c in db.query(models.Campagne).filter(models.Campagne.id.in_(ids or {0})).all()}
+        d["echeances"] = [{"id": e.id, "annee": e.annee, "mois": e.mois, "montant": e.montant, "statut": e.statut,
+                           "date_reglement": e.date_reglement, "mode_reglement": e.mode_reglement, "commentaire": e.commentaire,
+                           "campagne": libelles.get(e.campagne_id)} for e in p.echeances]
     return d
 
 
@@ -175,7 +197,7 @@ def creer_pret(corps: PretIn, request: Request, db: Session = Depends(get_db), a
                       detail={"matricule": s.matricule, "montant": str(corps.montant), "echeances": corps.nombre_echeances}, request=request)
     db.commit()
     db.refresh(p)
-    return _pret_sortie(p, True)
+    return _pret_sortie(p, True, db)
 
 
 @router.get("/prets/{pret_id}")
@@ -183,7 +205,7 @@ def detail_pret(pret_id: int, db: Session = Depends(get_db), _=Depends(GERER)):
     p = db.get(models.Pret, pret_id)
     if p is None:
         raise HTTPException(status_code=404, detail="Prêt introuvable.")
-    return _pret_sortie(p, True)
+    return _pret_sortie(p, True, db)
 
 
 @router.post("/prets/{pret_id}/annuler")
@@ -196,7 +218,73 @@ def annuler_pret(pret_id: int, request: Request, db: Session = Depends(get_db), 
     svc_prets.annuler(db, p)
     audit.enregistrer(db, "pret_annule", acteur=acteur, cible_type="pret", cible_id=p.id, request=request)
     db.commit()
-    return _pret_sortie(p, True)
+    return _pret_sortie(p, True, db)
+
+
+def _pret(db: Session, pret_id: int) -> models.Pret:
+    p = db.get(models.Pret, pret_id)
+    if p is None:
+        raise HTTPException(status_code=404, detail="Prêt introuvable.")
+    return p
+
+
+@router.post("/prets/{pret_id}/echeances/{echeance_id}/regler")
+def regler_echeance(pret_id: int, echeance_id: int, corps: ReglementIn, request: Request, db: Session = Depends(get_db),
+                    acteur: models.Utilisateur = Depends(GERER)):
+    p = _pret(db, pret_id)
+    e = db.get(models.EcheancePret, echeance_id)
+    if e is None or e.pret_id != p.id:
+        raise HTTPException(status_code=404, detail="Échéance introuvable.")
+    try:
+        a_recalculer = svc_prets.regler_echeance(db, p, e, corps.date_reglement, corps.mode_reglement, corps.commentaire, acteur)
+    except svc_prets.ErreurPret as err:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(err))
+    audit.enregistrer(db, "pret_echeance_reglee", acteur=acteur, cible_type="pret", cible_id=p.id,
+                      detail={"echeance": f"{e.mois:02d}/{e.annee}", "montant": str(e.montant), "mode": corps.mode_reglement,
+                              "date": corps.date_reglement.isoformat()}, request=request)
+    db.commit()
+    out = _pret_sortie(p, True, db)
+    out["campagnes_a_recalculer"] = a_recalculer
+    return out
+
+
+@router.post("/prets/{pret_id}/echeances/{echeance_id}/rouvrir")
+def rouvrir_echeance(pret_id: int, echeance_id: int, request: Request, db: Session = Depends(get_db),
+                     acteur: models.Utilisateur = Depends(GERER)):
+    p = _pret(db, pret_id)
+    e = db.get(models.EcheancePret, echeance_id)
+    if e is None or e.pret_id != p.id:
+        raise HTTPException(status_code=404, detail="Échéance introuvable.")
+    try:
+        svc_prets.rouvrir_echeance(db, p, e)
+    except svc_prets.ErreurPret as err:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(err))
+    audit.enregistrer(db, "pret_reglement_annule", acteur=acteur, cible_type="pret", cible_id=p.id,
+                      detail={"echeance": f"{e.mois:02d}/{e.annee}", "montant": str(e.montant)}, request=request)
+    db.commit()
+    return _pret_sortie(p, True, db)
+
+
+@router.post("/prets/{pret_id}/cloturer")
+def cloturer_pret(pret_id: int, corps: ClotureIn, request: Request, db: Session = Depends(get_db),
+                  acteur: models.Utilisateur = Depends(GERER)):
+    """Clôture anticipée : départ surprise, démission, décès… Le reste dû est régularisé hors paie ou passé en perte."""
+    p = _pret(db, pret_id)
+    reste = svc_prets.reste_a_rembourser(p)
+    try:
+        a_recalculer = svc_prets.cloturer(db, p, corps.motif, corps.issue, corps.date_cloture, corps.commentaire, acteur)
+    except svc_prets.ErreurPret as err:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(err))
+    audit.enregistrer(db, "pret_cloture", acteur=acteur, cible_type="pret", cible_id=p.id,
+                      detail={"motif": corps.motif, "issue": corps.issue, "reste": str(reste), "date": corps.date_cloture.isoformat()},
+                      request=request)
+    db.commit()
+    out = _pret_sortie(p, True, db)
+    out["campagnes_a_recalculer"] = a_recalculer
+    return out
 
 
 # ----------------------------------------------------------------- solde de tout compte

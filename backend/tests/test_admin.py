@@ -118,3 +118,45 @@ def test_journal_audit_non_modifiable(client, db):
         with pytest.raises(psycopg2.Error, match="ajout seul"):
             c.execute("DELETE FROM journal_audit")
     connexion_pg.close()
+
+
+def _fiche(db, matricule="000200", nom="BAMBA", prenoms="Salimata"):
+    from app.core import models
+    s = models.Salarie(matricule=matricule, nom=nom, prenoms=prenoms, email="s.bamba@exemple.ci", telephone="0102030405")
+    db.add(s)
+    db.commit()
+    return s
+
+
+def test_recherche_salarie_par_matricule(client, db):
+    creer_compte(db, "admin", "admin")
+    _fiche(db)
+    h = connexion(client)
+    r = client.get("/admin/salarie-par-matricule/200", headers=h)   # zéros initiaux facultatifs
+    assert r.status_code == 200 and r.json()["existe"] is True
+    assert r.json()["matricule"] == "000200" and r.json()["nom"] == "BAMBA" and r.json()["compte_existant"] is False
+    assert client.get("/admin/salarie-par-matricule/999999", headers=h).json() == {"existe": False}
+    assert client.get("/admin/salarie-par-matricule/abc", headers=h).json() == {"existe": False}
+
+
+def test_creation_compte_reprend_l_identite_de_la_fiche(client, db):
+    creer_compte(db, "admin", "admin")
+    _fiche(db)
+    h = connexion(client)
+    # Le client envoie des valeurs erronées : la fiche fait foi.
+    r = client.post("/admin/utilisateurs", headers=h,
+                    json={"identifiant": "200", "nom": "FAUX", "prenom": "Erreur", "email": "faux@x.ci", "role": "salarie"})
+    assert r.status_code == 201
+    u = r.json()["utilisateur"]
+    assert u["identifiant"] == "000200" and u["nom"] == "BAMBA" and u["prenom"] == "Salimata"
+    assert u["email"] == "s.bamba@exemple.ci"
+
+
+def test_audit_tri_par_colonne(client, db):
+    creer_compte(db, "admin", "admin")
+    h = connexion(client)
+    r = client.get("/admin/audit?tri=action&sens=asc", headers=h)
+    assert r.status_code == 200
+    actions = [e["action"] for e in r.json()["elements"]]
+    assert actions == sorted(actions)
+    assert client.get("/admin/audit?tri=detail", headers=h).status_code == 422

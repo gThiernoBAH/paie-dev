@@ -12,6 +12,12 @@ from app.api.declarations_routes import router as declarations_router
 from app.api.moi_routes import router as moi_router
 from app.api.notifications_routes import router as notifications_router
 from app.api.rapports_routes import router as rapports_router
+from app.api.discipline_routes import router as discipline_router
+from app.api.dossier_routes import router as dossier_router
+from app.api.outils_routes import router as outils_router
+from app.api.exercices_routes import router as exercices_router
+from app.api.grille_routes import router as grille_router
+from app.api.gratifications_routes import router as gratifications_router
 from app.api.virements_routes import router as virements_router
 from app.api.parametres_routes import router as parametres_router
 from app.api.pointages_routes import router as pointages_router
@@ -71,3 +77,9 @@ app.include_router(virements_router)
 app.include_router(notifications_router)
 app.include_router(moi_router)
 app.include_router(rapports_router)
+app.include_router(discipline_router)
+app.include_router(gratifications_router)
+app.include_router(dossier_router)
+app.include_router(outils_router)
+app.include_router(exercices_router)
+app.include_router(grille_router)

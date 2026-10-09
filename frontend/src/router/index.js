@@ -12,6 +12,12 @@ import CampagnesView from '../paie/components/CampagnesView.vue'
 import CampagneDetail from '../paie/components/CampagneDetail.vue'
 import CongesView from '../paie/components/CongesView.vue'
 import PretsView from '../paie/components/PretsView.vue'
+import DisciplineView from '../paie/components/DisciplineView.vue'
+import GratificationsView from '../paie/components/GratificationsView.vue'
+import SimulationView from '../paie/components/SimulationView.vue'
+import AugmentationsView from '../paie/components/AugmentationsView.vue'
+import ExercicesView from '../paie/components/ExercicesView.vue'
+import GrilleView from '../paie/components/GrilleView.vue'
 import VirementsView from '../paie/components/VirementsView.vue'
 import DeclarationsView from '../paie/components/DeclarationsView.vue'
 import EspaceView from '../salarie/EspaceView.vue'
@@ -22,6 +28,7 @@ import RapportsView from '../paie/components/RapportsView.vue'
 import ParametrageView from '../direction/components/ParametrageView.vue'
 import AdminView from '../direction/components/AdminView.vue'
 import { lireUtilisateur, aLaPermission } from '../api/session'
+import { estMobile } from '../composables/useEcran'
 
 const routes = [
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
@@ -41,6 +48,12 @@ const routes = [
       { path: 'campagnes/:id', name: 'campagne', component: CampagneDetail, meta: { requiresAnyPermission: ['lancer_paie', 'valider_bulletins', 'voir_rapports'] } },
       { path: 'conges', name: 'conges', component: CongesView, meta: { requiresAnyPermission: ['gerer_conges'] } },
       { path: 'prets', name: 'prets', component: PretsView, meta: { requiresAnyPermission: ['gerer_conges'] } },
+      { path: 'discipline', name: 'discipline', component: DisciplineView, meta: { requiresAnyPermission: ['gerer_discipline'] } },
+      { path: 'augmentations', name: 'augmentations', component: AugmentationsView, meta: { requiresAnyPermission: ['modifier_salaries'] } },
+      { path: 'exercices', name: 'exercices', component: ExercicesView, meta: { requiresAnyPermission: ['valider_bulletins'] } },
+      { path: 'grille', name: 'grille', component: GrilleView, meta: { requiresAnyPermission: ['voir_donnees_sensibles'] } },
+      { path: 'simulation', name: 'simulation', component: SimulationView, meta: { requiresAnyPermission: ['lancer_paie'] } },
+      { path: 'gratifications', name: 'gratifications', component: GratificationsView, meta: { requiresAnyPermission: ['lancer_paie'] } },
       { path: 'virements', name: 'virements', component: VirementsView, meta: { requiresAnyPermission: ['gerer_virements'] } },
       { path: 'declarations', name: 'declarations', component: DeclarationsView, meta: { requiresAnyPermission: ['voir_declarations'] } },
       { path: 'rapports', name: 'rapports', component: RapportsView, meta: { requiresAnyPermission: ['voir_rapports'] } },
@@ -80,6 +93,9 @@ router.beforeEach((to) => {
   // Un salarié n'a accès qu'à son espace ; les autres comptes n'y ont pas accès.
   if (user.role === 'salarie' && !to.path.startsWith('/espace') && to.name !== 'changer-mot-de-passe') return '/espace'
   if (user.role !== 'salarie' && to.path.startsWith('/espace')) return '/'
+
+  // Pas d'administration depuis un téléphone (le serveur la refuse aussi).
+  if (estMobile() && to.path.startsWith('/administration')) return '/'
 
   const requises = to.meta.requiresAnyPermission
   if (requises && !requises.some((cle) => aLaPermission(user, cle))) return '/'

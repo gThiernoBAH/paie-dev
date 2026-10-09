@@ -1,7 +1,7 @@
 """Jetons d'accès signés (HMAC-SHA256), sans dépendance externe. Même principe que vusine-dev.
 
 Format : `<payload_b64url>.<signature_b64url>`
-  payload = {"sub": id_utilisateur, "iat": émis_à, "exp": expire_à, "pwd": empreinte}
+  payload = {"sub": id_utilisateur, "iat": émis_à, "exp": expire_à, "pwd": empreinte, "can": "m" (si mobile)}
   signature = HMAC-SHA256(AUTH_SECRET_KEY, payload_b64url)
 
 `pwd` est une empreinte tronquée du hash de mot de passe : changer le mot de passe d'un compte
@@ -36,12 +36,14 @@ def empreinte_mot_de_passe(password_hash: str) -> str:
     return hashlib.sha256(password_hash.encode("utf-8")).hexdigest()[:16]
 
 
-def creer_jeton(user_id: int, password_hash: str, duree_heures: Optional[float] = None) -> tuple[str, int]:
-    """Retourne (jeton, expiration en epoch secondes)."""
+def creer_jeton(user_id: int, password_hash: str, duree_heures: Optional[float] = None, canal: str = "pc") -> tuple[str, int]:
+    """Retourne (jeton, expiration en epoch secondes). `canal` = « mobile » : jeton en lecture seule (voir auth_routes)."""
     duree = settings.AUTH_TOKEN_TTL_HOURS if duree_heures is None else duree_heures
     maintenant = int(time.time())
     expire = maintenant + int(duree * 3600)
     payload = {"sub": user_id, "iat": maintenant, "exp": expire, "pwd": empreinte_mot_de_passe(password_hash)}
+    if canal == "mobile":
+        payload["can"] = "m"
     corps = _b64e(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
     return f"{corps}.{_signer(corps)}", expire
 
